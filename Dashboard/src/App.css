@@ -1,0 +1,23 @@
+.embed {
+  width: 100%;
+  height: fit-content;
+
+  outline: solid 10px black;
+
+  display: flex;
+
+  justify-content: space-around;
+  align-items: center;
+
+  justify-self: center;
+
+  padding: 5px;
+}
+
+.embed[color="yellow"] {
+  background-color: rgb(186, 186, 3);
+}
+
+.embed[color="green"] {
+  background-color: rgb(28, 154, 9);
+}
