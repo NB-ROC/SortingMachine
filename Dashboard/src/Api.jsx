@@ -1,27 +1,28 @@
+// Api.jsx
 import { useState, useEffect } from "react";
 
-function Api() {
-  const [sensorData, setSensorData] = useState(null);
-
-  const ARDUINO_IP = "http://192.168.1.XX"; //To be filled in with correct information
+function Api({ setColors }) {
+  const ARDUINO_IP = "http://192.168.1.XX";
+  const [connected, setConnected] = useState(null); // null = pending
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const res = await fetch(`${ARDUINO_IP}/data`);
-
-      const json = await res.json();
-
-      setSensorData(json.sensor);
+      try {
+        const res = await fetch(`${ARDUINO_IP}/data`);
+        const json = await res.json();
+        setColors(json.colors);
+        setConnected(true);
+      } catch {
+        setConnected(false);
+      }
     }, 2000);
 
     return () => clearInterval(interval);
   }, []);
 
-  if (!sensorData) {
-    return <div>Cannot receive data!</div>;
-  }
-
-  return <div>Sensor Value: {sensorData}</div>;
+  if (connected === null) return <div>Connecting to sensor...</div>;
+  if (!connected) return <div>⚠️ Cannot receive data!</div>;
+  return <div>✅ Sensor live</div>;
 }
 
 export default Api;

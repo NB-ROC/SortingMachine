@@ -7,6 +7,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 
@@ -18,43 +19,94 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
+  Filler,
 );
 
 const data = {
-  labels: ["", "", "", "", "", "", "", "", ""],
+  labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
   datasets: [
     {
-      label: "Red Detected",
-      data: [0, 1, 3, 3, 7],
-      backgroundColor: "rgba(241, 99, 99, 0.6)",
-      borderColor: "rgb(241, 99, 99)",
-      borderWidth: 1,
+      label: "Red",
+      data: [0, 15, 29, 35, 45],
+      backgroundColor: "rgba(239, 68, 68, 0.1)",
+      borderColor: "rgb(239, 68, 68)",
+      borderWidth: 2.5,
+      pointBackgroundColor: "rgb(239, 68, 68)",
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.4,
+      fill: true,
     },
     {
-      label: "Blue Detected",
-      data: [2, 4, 6, 8, 11],
-      backgroundColor: "rgba(99, 149, 241, 0.6)",
-      borderColor: "rgb(99, 149, 241)",
-      borderWidth: 1,
+      label: "Blue",
+      data: [2, 14, 26, 36, 38],
+      backgroundColor: "rgba(59, 130, 246, 0.1)",
+      borderColor: "rgb(59, 130, 246)",
+      borderWidth: 2.5,
+      pointBackgroundColor: "rgb(59, 130, 246)",
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.4,
+      fill: true,
     },
     {
-      label: "Green Detected",
-      data: [5, 9, 14, 18, 28],
-      backgroundColor: "rgba(99, 211, 99, 0.6)",
-      borderColor: "rgb(99, 211, 99)",
-      borderWidth: 1,
-    },
+      label: "Green",
+      data: [5, 9, 14, 18, 22],
+      backgroundColor: "rgba(34, 197, 94, 0.1)",
+      borderColor: "rgb(34, 197, 94)",
+      borderWidth: 2.5,
+      pointBackgroundColor: "rgb(34, 197, 94)",
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.4,
+      fill: true,
+    }
   ],
 };
 
 const options = {
   responsive: true,
+  interaction: {
+    mode: "index",
+    intersect: false,
+  },
   plugins: {
-    legend: { position: "top" },
-    title: { display: true, text: "Colors Detected" },
+    legend: {
+      position: "top",
+      labels: {
+        usePointStyle: true,
+        pointStyle: "circle",
+        padding: 20,
+        font: { size: 13 },
+      },
+    },
+    title: {
+      display: true,
+      text: "Colors Detected",
+      font: { size: 18, weight: "bold" },
+      padding: { bottom: 20 },
+    },
+    tooltip: {
+      backgroundColor: "rgba(0,0,0,0.75)",
+      padding: 12,
+      cornerRadius: 8,
+      titleFont: { size: 13 },
+      bodyFont: { size: 13 },
+    },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      ticks: { font: { size: 12 } },
+    },
+    y: {
+      beginAtZero: true,
+      grid: { color: "rgba(0,0,0,0.06)" },
+      ticks: { font: { size: 12 } },
+    },
   },
 };
 
-export default function MyChart() {
+export default function ColorChart() {
   return <Line data={data} options={options} />;
 }
