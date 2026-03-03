@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 function Api() {
   const [sensorData, setSensorData] = useState(null);
 
-  const ARDUINO_IP = "http://192.168.1.XX";
+  const ARDUINO_IP = "http://192.168.1.XX"; //To be filled in with correct information
 
   useEffect(() => {
     const interval = setInterval(async () => {

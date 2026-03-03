@@ -1,25 +1,111 @@
+/* ── Embed Component ────────────────────────────────────────── */
+
 .embed {
   width: 100%;
   height: fit-content;
 
-  outline: solid 10px black;
-
   display: flex;
-
   justify-content: space-around;
   align-items: center;
-
   justify-self: center;
 
-  padding: 5px;
+  flex-direction: column;
 
-  
+  padding: 10px 16px;
+  border-radius: 10px;
+  gap: 10px;
+
+  font-family: mvboli;
+  font-weight: 500;
+
+  border: 3px solid transparent;
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
+.embed:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.embed:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ── Colors ─────────────────────────────────────────────────── */
+
 .embed[color="yellow"] {
-  background-color: rgb(186, 186, 3);
+  background-color: #f5c518;
+  border-color: #c9a000;
+  color: #3a2e00;
 }
 
 .embed[color="green"] {
-  background-color: rgb(28, 154, 9);
+  background-color: #22c55e;
+  border-color: #16a34a;
+  color: #052e16;
+}
+
+.embed[color="red"] {
+  background-color: #ef4444;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.embed[color="blue"] {
+  background-color: #3b82f6;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.embed[color="purple"] {
+  background-color: #a855f7;
+  border-color: #7e22ce;
+  color: #fff;
+}
+
+.embed[color="orange"] {
+  background-color: #f97316;
+  border-color: #c2410c;
+  color: #fff;
+}
+
+.embed[color="pink"] {
+  background-color: #ec4899;
+  border-color: #be185d;
+  color: #fff;
+}
+
+.embed[color="teal"] {
+  background-color: #14b8a6;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.embed[color="slate"] {
+  background-color: #64748b;
+  border-color: #334155;
+  color: #fff;
+}
+
+.embed[color="white"] {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.embed[color="dark"] {
+  background-color: #1e293b;
+  border-color: #0f172a;
+  color: #f1f5f9;
 }
