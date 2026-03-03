@@ -1,22 +1,14 @@
 import "./App.css";
 
 function App() {
-  return (
-    <>
-
-    </>
-  );
+  return <></>;
 }
 
-function Embed(color) {
+function Embed({color, children}) {
   return (
     <>
-      <div className="embed" color={color.color}>
-        <p>EMBED TEST</p>
-        <p>EMBED TEST</p>
-        <p>EMBED TEST</p>
-        <p>EMBED TEST</p>
-        <p>EMBED TEST</p>
+      <div className="embed" color={color}>
+        {children}
       </div>
     </>
   );
