@@ -159,14 +159,14 @@ void loop() {
   jsonState("scan");
   DetectionResult det = readStableColor();
 
+  jsonState("sort_return");
+  returnStep2();
+
   jsonState("sort_move");
   moveStep2ToColor(det.color);
 
-  jsonState("cycle_done");
+  jsonState("cycle_delay");
   delay(LOOP_DELAY_MS);
-
-  jsonState("sort_return");
-  returnStep2();
 }
 
 void stepMotor(int stepPin, int steps, int rateUs) {
