@@ -61,9 +61,9 @@ struct ContainerConfig {
 const ContainerConfig containerMap[COLOR_COUNT] = {
   { 0,  HIGH }, // UNKNOWN
   { 34, HIGH }, // BLUE
-  { 29, HIGH }, // YELLOW
+  { 26, HIGH }, // YELLOW
   { 0,  HIGH }, // GREEN (no move)
-  { 29, LOW  }, // RED
+  { 34, LOW  }, // RED
   { 29, LOW  }  // BROWN
 };
 
@@ -385,19 +385,15 @@ void saveCalibration() {
 void jsonEvent(const char* e) {
   Serial.print(F("{\"type\":\"event\",\"event\":\"")); Serial.print(e); Serial.println(F("\"}"));
 }
-
 void jsonState(const char* s) {
   Serial.print(F("{\"type\":\"state\",\"state\":\"")); Serial.print(s); Serial.println(F("\"}"));
 }
-
 void jsonCommand(const char* cmd) {
   Serial.print(F("{\"type\":\"command\",\"cmd\":\"")); Serial.print(cmd); Serial.println(F("\"}"));
 }
-
 void jsonCalibrationSaved() {
   Serial.println(F("{\"type\":\"calibration_saved\"}"));
 }
-
 void jsonCalibrationPoint(const char* label, const int v[NUM_CHANNELS], long dist) {
   Serial.print(F("{\"type\":\"calibration_point\",\"label\":\"")); Serial.print(label);
   Serial.print(F("\",\"distFromBaseline\":")); Serial.print(dist);
@@ -407,7 +403,6 @@ void jsonCalibrationPoint(const char* label, const int v[NUM_CHANNELS], long dis
   Serial.print(F(",\"c\":")); Serial.print(v[3]);
   Serial.println(F("}}"));
 }
-
 void jsonDetectionSample(const DetectionResult &d, int attempt, int consecutive) {
   Serial.print(F("{\"type\":\"detection_sample\",\"attempt\":")); Serial.print(attempt);
   Serial.print(F(",\"color\":\"")); Serial.print(colorNames[d.color]);
@@ -421,7 +416,6 @@ void jsonDetectionSample(const DetectionResult &d, int attempt, int consecutive)
   Serial.print(F(",\"c\":")); Serial.print(d.c);
   Serial.println(F("}}"));
 }
-
 void jsonDetectionFinal(const DetectionResult &d, bool stableHit, int maxVotes) {
   Serial.print(F("{\"type\":\"detection_final\",\"color\":\"")); Serial.print(colorNames[d.color]);
   Serial.print(F("\",\"bestDist\":")); Serial.print(d.bestDist);
