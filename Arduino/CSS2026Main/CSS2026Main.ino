@@ -1,12 +1,12 @@
 #include <EEPROM.h>
 
 const int stepPin1 = 6;
-const int dirPin1  = 5;
-const int enPin1   = 7;
+const int dirPin1 = 5;
+const int enPin1 = 7;
 
 const int stepPin2 = 3;
-const int dirPin2  = 2;
-const int enPin2   = 7;
+const int dirPin2 = 2;
+const int enPin2 = 7;
 
 #define S0 8
 #define S1 9
@@ -17,8 +17,8 @@ const int enPin2   = 7;
 const int RATE_STEPPER1 = 170000;
 const int RATE_STEPPER2 = 2000;
 
-const int STEPS_PER_90 = 50;
-const int INDEX_DIR    = LOW;  // LOW=CW, HIGH=CCW (CW = Clock Wise, CCW = Counter Clock Wise)
+const double STEPS_PER_90 = 50;
+const int INDEX_DIR = LOW;  // LOW=CW, HIGH=CCW (CW = Clock Wise, CCW = Counter Clock Wise)
 
 const int LOOP_DELAY_MS = 300;
 
@@ -44,14 +44,14 @@ const char* colorNames[] = {
 };
 
 // [R,G,B,C]
-int baselineRef[NUM_CHANNELS] = {10, 17, 20, 15};
-int blueVal[NUM_CHANNELS]     = {14, 20, 14, 12};
-int yellowVal[NUM_CHANNELS]   = {10, 15, 18, 9};
-int greenVal[NUM_CHANNELS]    = {12, 14, 17, 11};
-int redVal[NUM_CHANNELS]      = {15, 79, 20, 13};
-int brownVal[NUM_CHANNELS]    = {12, 18, 22, 14};
+int baselineRef[NUM_CHANNELS] = { 10, 17, 20, 15 };
+int blueVal[NUM_CHANNELS] = { 14, 20, 14, 12 };
+int yellowVal[NUM_CHANNELS] = { 10, 15, 18, 9 };
+int greenVal[NUM_CHANNELS] = { 12, 14, 17, 11 };
+int redVal[NUM_CHANNELS] = { 15, 79, 20, 13 };
+int brownVal[NUM_CHANNELS] = { 12, 18, 22, 14 };
 
-int rgbc[NUM_CHANNELS] = {0, 0, 0, 0};
+int rgbc[NUM_CHANNELS] = { 0, 0, 0, 0 };
 
 struct ContainerConfig {
   int steps;
@@ -59,12 +59,12 @@ struct ContainerConfig {
 };
 
 const ContainerConfig containerMap[COLOR_COUNT] = {
-  { 0,  HIGH }, // UNKNOWN
-  { 34, HIGH }, // BLUE
-  { 26, HIGH }, // YELLOW
-  { 0,  HIGH }, // GREEN (no move)
-  { 34, LOW  }, // RED
-  { 29, LOW  }  // BROWN
+  { 0, HIGH },   // UNKNOWN
+  { 38, HIGH },  // BLUE
+  { 20, HIGH },  // YELLOW
+  { 20, LOW },   // GREEN
+  { 0, HIGH },   // RED
+  { 38, LOW }    // BROWN
 };
 
 struct DetectionResult {
@@ -76,8 +76,8 @@ struct DetectionResult {
 };
 
 // stepper2 state
-int numberOfSteps2 = 0;
-int direction2 = 0; // 1=CCW(HIGH), 2=CW(LOW)
+double numberOfSteps2 = 0;
+int direction2 = 0;  // 1=CCW(HIGH), 2=CW(LOW)
 
 void stepMotor(int stepPin, int steps, int rateUs);
 void index90Step1();
@@ -98,8 +98,8 @@ void takeAverageReading(int outAvg[NUM_CHANNELS], int samples);
 // JSON
 void jsonEvent(const char* e);
 void jsonState(const char* s);
-void jsonDetectionSample(const DetectionResult &d, int attempt, int consecutive);
-void jsonDetectionFinal(const DetectionResult &d, bool stableHit, int maxVotes);
+void jsonDetectionSample(const DetectionResult& d, int attempt, int consecutive);
+void jsonDetectionFinal(const DetectionResult& d, bool stableHit, int maxVotes);
 void jsonCalibrationPoint(const char* label, const int v[NUM_CHANNELS], long dist);
 void jsonCalibrationSaved();
 void jsonCommand(const char* cmd);
@@ -162,6 +162,8 @@ void loop() {
   jsonState("sort_return");
   returnStep2();
 
+  delay(100);
+
   jsonState("sort_move");
   moveStep2ToColor(det.color);
 
@@ -169,7 +171,7 @@ void loop() {
   delay(LOOP_DELAY_MS);
 }
 
-void stepMotor(int stepPin, int steps, int rateUs) {
+void stepMotor(int stepPin, double steps, int rateUs) {
   for (int i = 0; i < steps; i++) {
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(rateUs);
@@ -187,9 +189,9 @@ void moveStep2ToColor(Color c) {
   direction2 = 0;
 
   if (c <= UNKNOWN || c >= COLOR_COUNT) return;
-  if (c == GREEN) return;
+  // if (c == GREEN) return;
 
-  const ContainerConfig &cfg = containerMap[c];
+  const ContainerConfig& cfg = containerMap[c];
   numberOfSteps2 = cfg.steps;
   digitalWrite(dirPin2, cfg.dirLevel);
   direction2 = (cfg.dirLevel == HIGH) ? 1 : 2;
@@ -210,10 +212,22 @@ void returnStep2() {
 }
 
 void readRGBC() {
-  digitalWrite(S2, LOW);  digitalWrite(S3, LOW);  rgbc[0] = pulseIn(SENSOR_OUT, LOW); delay(5); // R
-  digitalWrite(S2, HIGH); digitalWrite(S3, HIGH); rgbc[1] = pulseIn(SENSOR_OUT, LOW); delay(5); // G
-  digitalWrite(S2, LOW);  digitalWrite(S3, HIGH); rgbc[2] = pulseIn(SENSOR_OUT, LOW); delay(5); // B
-  digitalWrite(S2, HIGH); digitalWrite(S3, LOW);  rgbc[3] = pulseIn(SENSOR_OUT, LOW); delay(5); // C
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, LOW);
+  rgbc[0] = pulseIn(SENSOR_OUT, LOW);
+  delay(5);  // R
+  digitalWrite(S2, HIGH);
+  digitalWrite(S3, HIGH);
+  rgbc[1] = pulseIn(SENSOR_OUT, LOW);
+  delay(5);  // G
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, HIGH);
+  rgbc[2] = pulseIn(SENSOR_OUT, LOW);
+  delay(5);  // B
+  digitalWrite(S2, HIGH);
+  digitalWrite(S3, LOW);
+  rgbc[3] = pulseIn(SENSOR_OUT, LOW);
+  delay(5);  // C
 }
 
 long colorDistanceSq(const int a[NUM_CHANNELS], const int b[NUM_CHANNELS]) {
@@ -226,16 +240,19 @@ long colorDistanceSq(const int a[NUM_CHANNELS], const int b[NUM_CHANNELS]) {
 }
 
 DetectionResult detectColorDetailed(const int current[NUM_CHANNELS]) {
-  const int* presets[5] = {blueVal, yellowVal, greenVal, redVal, brownVal};
-  Color colors[5] = {BLUE, YELLOW, GREEN, RED, BROWN};
+  const int* presets[5] = { blueVal, yellowVal, greenVal, redVal, brownVal };
+  Color colors[5] = { BLUE, YELLOW, GREEN, RED, BROWN };
 
   long best = 999999, second = 999999;
   Color bestColor = UNKNOWN;
 
   for (int i = 0; i < 5; i++) {
     long d = colorDistanceSq(current, presets[i]);
-    if (d < best) { second = best; best = d; bestColor = colors[i]; }
-    else if (d < second) second = d;
+    if (d < best) {
+      second = best;
+      best = d;
+      bestColor = colors[i];
+    } else if (d < second) second = d;
   }
 
   DetectionResult out;
@@ -257,12 +274,12 @@ DetectionResult detectColorDetailed(const int current[NUM_CHANNELS]) {
 }
 
 DetectionResult readStableColor() {
-  int votes[COLOR_COUNT] = {0};
+  int votes[COLOR_COUNT] = { 0 };
   int consecutive = 0;
   int maxVotes = 0;
   Color last = UNKNOWN, winner = UNKNOWN;
 
-  DetectionResult lastResult = {UNKNOWN, 999999, 999999, 0, 0, 0, 0, 0};
+  DetectionResult lastResult = { UNKNOWN, 999999, 999999, 0, 0, 0, 0, 0 };
 
   for (int i = 0; i < 12; i++) {
     readRGBC();
@@ -272,7 +289,10 @@ DetectionResult readStableColor() {
     if (d.color != UNKNOWN) {
       votes[d.color]++;
       if (d.color == last) consecutive++;
-      else { last = d.color; consecutive = 1; }
+      else {
+        last = d.color;
+        consecutive = 1;
+      }
 
       if (votes[d.color] > maxVotes) {
         maxVotes = votes[d.color];
@@ -299,7 +319,7 @@ DetectionResult readStableColor() {
 }
 
 void takeAverageReading(int outAvg[NUM_CHANNELS], int samples) {
-  long sum[NUM_CHANNELS] = {0,0,0,0};
+  long sum[NUM_CHANNELS] = { 0, 0, 0, 0 };
   for (int i = 0; i < samples; i++) {
     readRGBC();
     for (int ch = 0; ch < NUM_CHANNELS; ch++) sum[ch] += rgbc[ch];
@@ -319,17 +339,23 @@ void calibrateManual() {
   for (int ch = 0; ch < NUM_CHANNELS; ch++) baselineRef[ch] = avg[ch];
 
   Serial.print(F("Baseline: "));
-  Serial.print(baselineRef[0]); Serial.print(",");
-  Serial.print(baselineRef[1]); Serial.print(",");
-  Serial.print(baselineRef[2]); Serial.print(",");
+  Serial.print(baselineRef[0]);
+  Serial.print(",");
+  Serial.print(baselineRef[1]);
+  Serial.print(",");
+  Serial.print(baselineRef[2]);
+  Serial.print(",");
   Serial.println(baselineRef[3]);
 
-  struct CalItem { Color c; int* target; };
+  struct CalItem {
+    Color c;
+    int* target;
+  };
   CalItem items[] = {
-    {BLUE, blueVal}, {YELLOW, yellowVal}, {GREEN, greenVal}, {RED, redVal}, {BROWN, brownVal}
+    { BLUE, blueVal }, { YELLOW, yellowVal }, { GREEN, greenVal }, { RED, redVal }, { BROWN, brownVal }
   };
 
-  for (unsigned int i = 0; i < sizeof(items)/sizeof(items[0]); i++) {
+  for (unsigned int i = 0; i < sizeof(items) / sizeof(items[0]); i++) {
     Serial.print(F("Hold "));
     Serial.print(colorNames[items[i].c]);
     Serial.println(F(" in front of scanner (3 sec)..."));
@@ -339,11 +365,17 @@ void calibrateManual() {
     for (int ch = 0; ch < NUM_CHANNELS; ch++) items[i].target[ch] = avg[ch];
 
     long dist = colorDistanceSq(baselineRef, avg);
-    Serial.print(F("Saved ")); Serial.print(colorNames[items[i].c]); Serial.print(F(": "));
-    Serial.print(avg[0]); Serial.print(",");
-    Serial.print(avg[1]); Serial.print(",");
-    Serial.print(avg[2]); Serial.print(",");
-    Serial.print(avg[3]); Serial.print(F(" d="));
+    Serial.print(F("Saved "));
+    Serial.print(colorNames[items[i].c]);
+    Serial.print(F(": "));
+    Serial.print(avg[0]);
+    Serial.print(",");
+    Serial.print(avg[1]);
+    Serial.print(",");
+    Serial.print(avg[2]);
+    Serial.print(",");
+    Serial.print(avg[3]);
+    Serial.print(F(" d="));
     Serial.println(dist);
 
     if (dist < CALIBRATION_MIN_DISTANCE) {
@@ -360,11 +392,11 @@ void loadCalibration() {
   if (EEPROM.read(0) == 0xA5) {
     int addr = 1;
     for (int i = 0; i < NUM_CHANNELS; i++) baselineRef[i] = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) blueVal[i]     = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) yellowVal[i]   = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) greenVal[i]    = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) redVal[i]      = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) brownVal[i]    = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) blueVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) yellowVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) greenVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) redVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) brownVal[i] = EEPROM.read(addr++);
     jsonEvent("calibration_loaded");
   } else {
     jsonEvent("no_calibration");
@@ -383,49 +415,81 @@ void saveCalibration() {
 }
 
 void jsonEvent(const char* e) {
-  Serial.print(F("{\"type\":\"event\",\"event\":\"")); Serial.print(e); Serial.println(F("\"}"));
+  Serial.print(F("{\"type\":\"event\",\"event\":\""));
+  Serial.print(e);
+  Serial.println(F("\"}"));
 }
 void jsonState(const char* s) {
-  Serial.print(F("{\"type\":\"state\",\"state\":\"")); Serial.print(s); Serial.println(F("\"}"));
+  Serial.print(F("{\"type\":\"state\",\"state\":\""));
+  Serial.print(s);
+  Serial.println(F("\"}"));
 }
 void jsonCommand(const char* cmd) {
-  Serial.print(F("{\"type\":\"command\",\"cmd\":\"")); Serial.print(cmd); Serial.println(F("\"}"));
+  Serial.print(F("{\"type\":\"command\",\"cmd\":\""));
+  Serial.print(cmd);
+  Serial.println(F("\"}"));
 }
 void jsonCalibrationSaved() {
   Serial.println(F("{\"type\":\"calibration_saved\"}"));
 }
 void jsonCalibrationPoint(const char* label, const int v[NUM_CHANNELS], long dist) {
-  Serial.print(F("{\"type\":\"calibration_point\",\"label\":\"")); Serial.print(label);
-  Serial.print(F("\",\"distFromBaseline\":")); Serial.print(dist);
-  Serial.print(F(",\"rgbc\":{\"r\":")); Serial.print(v[0]);
-  Serial.print(F(",\"g\":")); Serial.print(v[1]);
-  Serial.print(F(",\"b\":")); Serial.print(v[2]);
-  Serial.print(F(",\"c\":")); Serial.print(v[3]);
+  Serial.print(F("{\"type\":\"calibration_point\",\"label\":\""));
+  Serial.print(label);
+  Serial.print(F("\",\"distFromBaseline\":"));
+  Serial.print(dist);
+  Serial.print(F(",\"rgbc\":{\"r\":"));
+  Serial.print(v[0]);
+  Serial.print(F(",\"g\":"));
+  Serial.print(v[1]);
+  Serial.print(F(",\"b\":"));
+  Serial.print(v[2]);
+  Serial.print(F(",\"c\":"));
+  Serial.print(v[3]);
   Serial.println(F("}}"));
 }
-void jsonDetectionSample(const DetectionResult &d, int attempt, int consecutive) {
-  Serial.print(F("{\"type\":\"detection_sample\",\"attempt\":")); Serial.print(attempt);
-  Serial.print(F(",\"color\":\"")); Serial.print(colorNames[d.color]);
-  Serial.print(F("\",\"bestDist\":")); Serial.print(d.bestDist);
-  Serial.print(F(",\"secondBest\":")); Serial.print(d.secondBest);
-  Serial.print(F(",\"separation\":")); Serial.print(d.separation);
-  Serial.print(F(",\"consecutive\":")); Serial.print(consecutive);
-  Serial.print(F(",\"rgbc\":{\"r\":")); Serial.print(d.r);
-  Serial.print(F(",\"g\":")); Serial.print(d.g);
-  Serial.print(F(",\"b\":")); Serial.print(d.b);
-  Serial.print(F(",\"c\":")); Serial.print(d.c);
+void jsonDetectionSample(const DetectionResult& d, int attempt, int consecutive) {
+  Serial.print(F("{\"type\":\"detection_sample\",\"attempt\":"));
+  Serial.print(attempt);
+  Serial.print(F(",\"color\":\""));
+  Serial.print(colorNames[d.color]);
+  Serial.print(F("\",\"bestDist\":"));
+  Serial.print(d.bestDist);
+  Serial.print(F(",\"secondBest\":"));
+  Serial.print(d.secondBest);
+  Serial.print(F(",\"separation\":"));
+  Serial.print(d.separation);
+  Serial.print(F(",\"consecutive\":"));
+  Serial.print(consecutive);
+  Serial.print(F(",\"rgbc\":{\"r\":"));
+  Serial.print(d.r);
+  Serial.print(F(",\"g\":"));
+  Serial.print(d.g);
+  Serial.print(F(",\"b\":"));
+  Serial.print(d.b);
+  Serial.print(F(",\"c\":"));
+  Serial.print(d.c);
   Serial.println(F("}}"));
 }
-void jsonDetectionFinal(const DetectionResult &d, bool stableHit, int maxVotes) {
-  Serial.print(F("{\"type\":\"detection_final\",\"color\":\"")); Serial.print(colorNames[d.color]);
-  Serial.print(F("\",\"bestDist\":")); Serial.print(d.bestDist);
-  Serial.print(F(",\"secondBest\":")); Serial.print(d.secondBest);
-  Serial.print(F(",\"separation\":")); Serial.print(d.separation);
-  Serial.print(F(",\"stableHit\":")); Serial.print(stableHit ? F("true") : F("false"));
-  Serial.print(F(",\"maxVotes\":")); Serial.print(maxVotes);
-  Serial.print(F(",\"rgbc\":{\"r\":")); Serial.print(d.r);
-  Serial.print(F(",\"g\":")); Serial.print(d.g);
-  Serial.print(F(",\"b\":")); Serial.print(d.b);
-  Serial.print(F(",\"c\":")); Serial.print(d.c);
+void jsonDetectionFinal(const DetectionResult& d, bool stableHit, int maxVotes) {
+  Serial.print(F("{\"type\":\"detection_final\",\"color\":\""));
+  Serial.print(colorNames[d.color]);
+  Serial.print(F("\",\"bestDist\":"));
+  Serial.print(d.bestDist);
+  Serial.print(F(",\"secondBest\":"));
+  Serial.print(d.secondBest);
+  Serial.print(F(",\"separation\":"));
+  Serial.print(d.separation);
+  Serial.print(F(",\"stableHit\":"));
+  Serial.print(stableHit ? F("true") : F("false"));
+  Serial.print(F(",\"maxVotes\":"));
+  Serial.print(maxVotes);
+  Serial.print(F(",\"rgbc\":{\"r\":"));
+  Serial.print(d.r);
+  Serial.print(F(",\"g\":"));
+  Serial.print(d.g);
+  Serial.print(F(",\"b\":"));
+  Serial.print(d.b);
+  Serial.print(F(",\"c\":"));
+  Serial.print(d.c);
   Serial.println(F("}}"));
 }
