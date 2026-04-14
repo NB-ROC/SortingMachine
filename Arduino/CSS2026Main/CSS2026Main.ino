@@ -1,4 +1,5 @@
 #include <EEPROM.h>
+#include <ArduinoJson.h>
 
 const int stepPin1 = 6;
 const int dirPin1 = 5;
@@ -14,11 +15,11 @@ const int enPin2 = 7;
 #define S3 11
 #define SENSOR_OUT 12
 
-const int RATE_STEPPER1 = 170000;
+int RATE_STEPPER1 = 170000;
 const int RATE_STEPPER2 = 2000;
 
 const double STEPS_PER_90 = 50;
-const int INDEX_DIR = LOW;  // LOW=CW, HIGH=CCW (CW = Clock Wise, CCW = Counter Clock Wise)
+const int INDEX_DIR = LOW;  // LOW=Clock Wise, HIGH=Counter Clock Wise
 
 const int LOOP_DELAY_MS = 300;
 
@@ -28,6 +29,8 @@ const int LOOP_DELAY_MS = 300;
 #define MIN_SEPARATION 8
 #define CALIBRATION_MIN_DISTANCE 10
 #define MAX_BEST_DIST 150
+
+#define MAX_STEPS 180
 
 enum Color {
   UNKNOWN,
@@ -52,6 +55,10 @@ int redVal[NUM_CHANNELS] = { 15, 79, 20, 13 };
 int brownVal[NUM_CHANNELS] = { 12, 18, 22, 14 };
 
 int rgbc[NUM_CHANNELS] = { 0, 0, 0, 0 };
+
+bool live = false;
+
+bool paused = false;
 
 struct ContainerConfig {
   int steps;
@@ -126,22 +133,52 @@ void setup() {
   digitalWrite(S0, HIGH);
   digitalWrite(S1, HIGH);
 
+  getToPoint();
+
   loadCalibration();
   jsonEvent("boot");
 }
 
 void loop() {
   if (Serial.available()) {
-    char cmd = Serial.read();
-    while (Serial.available()) Serial.read();
+    String cmd = Serial.readStringUntil("\n");
 
-    if (cmd == 'C' || cmd == 'c') {
+    Serial.println(cmd);
+
+    JsonDocument doc;
+    deserializeJson(doc, cmd);
+
+    String action = doc["action"];
+
+    String value = doc["value"];
+
+    if (action == "set_speed") {
+      int speed = value.toInt();
+
+      const double k = 1000.0;
+      RATE_STEPPER1 = 170000 + k * (100 - speed);
+      return;
+    } else if (action == "calibrate_wheel") {
+      getToPoint();
+      return;
+    } else if (action == "calibrate_colors") {
+      jsonCommand("calibrate");
+      calibrateManual();
+      return;
+    } else if (action == "toggle_pause"){
+      paused = !paused;
+      return;
+    }
+
+    char charCMD = cmd[0];
+
+    if (charCMD == 'C' || charCMD == 'c') {
       jsonCommand("calibrate");
       calibrateManual();
       return;
     }
 
-    if (cmd == 'V' || cmd == 'v') {
+    if (charCMD == 'V' || charCMD == 'v') {
       jsonCommand("view_calibration");
       jsonCalibrationPoint("baseline", baselineRef, 0);
       jsonCalibrationPoint("blue", blueVal, colorDistanceSq(baselineRef, blueVal));
@@ -151,27 +188,78 @@ void loop() {
       jsonCalibrationPoint("brown", brownVal, colorDistanceSq(baselineRef, brownVal));
       return;
     }
+
+    if (charCMD == 'L' || charCMD == 'l') {
+      live = !live;
+      return;
+    }
+
+    if (charCMD == 'P' || charCMD == 'p') {
+      paused = !paused;
+
+      return;
+    }
+
+    if (charCMD == 'R' || charCMD == 'r') {
+      getToPoint();
+      return;
+    }
   }
 
-  jsonState("index_90");
-  index90Step1();
+  if (paused == false) {
+    jsonState("index_90");
+    index90Step1();
 
-  jsonState("scan");
-  DetectionResult det = readStableColor();
+    jsonState("scan");
+    DetectionResult det = readStableColor();
 
-  jsonState("sort_return");
-  returnStep2();
+    jsonState("sort_return");
+    returnStep2();
 
-  delay(100);
+    if (det.color != UNKNOWN) {
+      delay(100);
 
-  jsonState("sort_move");
-  moveStep2ToColor(det.color);
+      jsonState("sort_move");
+      moveStep2ToColor(det.color);
+    }
 
-  jsonState("cycle_delay");
-  delay(LOOP_DELAY_MS);
+    jsonState("cycle_delay");
+    delay(LOOP_DELAY_MS);
+  }
+}
+
+void getToPoint() {
+  DetectionResult result;
+
+  do {
+    stepMotor(stepPin1, 4.0, RATE_STEPPER1);
+    result = readStableColor();
+  } while (result.c <= 31);
+
+  result = readStableColor();
+
+  if (result.c < 32) {
+    stepMotor(stepPin1, 2.0, RATE_STEPPER1);
+  }
+}
+
+int computeConfidence(long bestDist, long separation) {
+  if (bestDist > MAX_BEST_DIST || separation < MIN_SEPARATION) return 0;
+
+  int distScore = 100 - (int)((bestDist * 100L) / MAX_BEST_DIST);
+
+  long sepCap = (long)MIN_SEPARATION * 3;
+  if (separation > sepCap) separation = sepCap;
+  int sepScore = (int)((separation * 100L) / sepCap);
+
+  return (distScore * 60 + sepScore * 40) / 100;
 }
 
 void stepMotor(int stepPin, double steps, int rateUs) {
+  if (steps > MAX_STEPS) {
+    return;
+  }
+
   for (int i = 0; i < steps; i++) {
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(rateUs);
@@ -215,19 +303,33 @@ void readRGBC() {
   digitalWrite(S2, LOW);
   digitalWrite(S3, LOW);
   rgbc[0] = pulseIn(SENSOR_OUT, LOW);
-  delay(5);  // R
+  delay(2);  // R
   digitalWrite(S2, HIGH);
   digitalWrite(S3, HIGH);
   rgbc[1] = pulseIn(SENSOR_OUT, LOW);
-  delay(5);  // G
+  delay(2);  // G
   digitalWrite(S2, LOW);
   digitalWrite(S3, HIGH);
   rgbc[2] = pulseIn(SENSOR_OUT, LOW);
-  delay(5);  // B
+  delay(2);  // B
   digitalWrite(S2, HIGH);
   digitalWrite(S3, LOW);
   rgbc[3] = pulseIn(SENSOR_OUT, LOW);
-  delay(5);  // C
+  delay(2);  // C
+
+  if (live) {
+    Serial.println();
+    Serial.print(" R: ");
+    Serial.print(rgbc[0]);
+    Serial.print(" G: ");
+    Serial.print(rgbc[1]);
+    Serial.print(" B: ");
+    Serial.print(rgbc[2]);
+    Serial.print(" C: ");
+    Serial.print(rgbc[3]);
+    Serial.println();
+    Serial.println();
+  }
 }
 
 long colorDistanceSq(const int a[NUM_CHANNELS], const int b[NUM_CHANNELS]) {
@@ -281,25 +383,25 @@ DetectionResult readStableColor() {
 
   DetectionResult lastResult = { UNKNOWN, 999999, 999999, 0, 0, 0, 0, 0 };
 
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < 20; i++) {
     readRGBC();
     DetectionResult d = detectColorDetailed(rgbc);
     lastResult = d;
 
-    if (d.color != UNKNOWN) {
-      votes[d.color]++;
-      if (d.color == last) consecutive++;
-      else {
-        last = d.color;
-        consecutive = 1;
-      }
+    if (d.c >= 34) {
+      consecutive += 2;
+    }
 
-      if (votes[d.color] > maxVotes) {
-        maxVotes = votes[d.color];
-        winner = d.color;
-      }
-    } else {
-      consecutive = 0;
+    votes[d.color]++;
+    if (d.color == last) consecutive++;
+    else {
+      last = d.color;
+      consecutive = 1;
+    }
+
+    if (votes[d.color] > maxVotes) {
+      maxVotes = votes[d.color];
+      winner = d.color;
     }
 
     jsonDetectionSample(d, i + 1, consecutive);
@@ -308,7 +410,7 @@ DetectionResult readStableColor() {
       jsonDetectionFinal(d, true, maxVotes);
       return d;
     }
-    delay(120);
+    // delay(120);
   }
 
   if (maxVotes >= STABLE_READS) lastResult.color = winner;
@@ -460,6 +562,8 @@ void jsonDetectionSample(const DetectionResult& d, int attempt, int consecutive)
   Serial.print(d.separation);
   Serial.print(F(",\"consecutive\":"));
   Serial.print(consecutive);
+  Serial.print(F("\",\"accuracy\":"));
+  Serial.print(computeConfidence(d.bestDist, d.separation));
   Serial.print(F(",\"rgbc\":{\"r\":"));
   Serial.print(d.r);
   Serial.print(F(",\"g\":"));
