@@ -89,6 +89,14 @@ void updateDashboard() {
   webSocket.broadcastTXT(json);
 }
 
+// ── Dispatch an action to Serial2 and log it ─────────────────────────────────
+void dispatchAction(StaticJsonDocument<256>& doc) {
+  String json;
+  serializeJson(doc, json);
+  Serial2.println(json);
+  Serial.println(json);
+}
+
 // ── WebSocket event handler ───────────────────────────────────────────────────
 void onWebSocketEvent(uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_CONNECTED) {
@@ -100,12 +108,10 @@ void onWebSocketEvent(uint8_t client, WStype_t type, uint8_t* payload, size_t le
     DeserializationError err = deserializeJson(doc, payload, length);
     if (err) return;
 
-    // if (doc.containsKey("speed")) controls.speed = doc["speed"];
-    // if (doc.containsKey("mode"))  controls.mode  = doc["mode"].as<String>();
-
-    // Serial.printf("Controls updated: speed=%d mode=%s\n",
-    //               controls.speed, controls.mode.c_str());
-    // forwardControlsToArduino();
+    // All controls are sent as {action: "..."} — dispatch to Serial2
+    if (doc.containsKey("action")) {
+      dispatchAction(doc);
+    }
   }
 }
 
@@ -236,9 +242,11 @@ void handleRoot() {
   server.sendContent("@keyframes slide-in { from { opacity:0; transform:translateY(-4px); } }\n");
   server.sendContent(".feed-time { color:var(--dim); flex-shrink:0; font-size:10px; } .feed-msg { color:var(--text); flex:1; }\n");
   server.sendContent(".feed-badge { padding:1px 6px; border-radius:3px; font-size:9px; letter-spacing:1px; flex-shrink:0; }\n");
+  // ── Controls panel styles ─────────────────────────────────────────────────
   server.sendContent("#panel-controls { grid-column:3; grid-row:2; display:flex; flex-direction:column; gap:0; padding:0; overflow:auto; }\n");
   server.sendContent(".ctrl-section { padding:16px 18px; border-bottom:1px solid var(--border); }\n");
   server.sendContent(".ctrl-section:last-child { border-bottom:none; }\n");
+  server.sendContent(".ctrl-label { font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; margin-bottom:12px; }\n");
   server.sendContent(".speed-display { display:flex; flex-direction:column; align-items:center; gap:8px; padding:4px 0 12px; }\n");
   server.sendContent(".speed-num { font-family:var(--sans); font-size:52px; font-weight:800; color:#fff; line-height:1; letter-spacing:-2px; }\n");
   server.sendContent(".speed-num em { font-style:normal; font-size:18px; color:var(--dim2); letter-spacing:0; }\n");
@@ -255,23 +263,15 @@ void handleRoot() {
   server.sendContent(".mode-btn.active { background:var(--accent); border-color:var(--accent); color:#000; font-weight:500; }\n");
   server.sendContent(".mode-btn.danger { border-color:rgba(255,58,92,.4); color:var(--danger); }\n");
   server.sendContent(".mode-btn.danger:hover,.mode-btn.danger.active { background:var(--danger); border-color:var(--danger); color:#fff; }\n");
-  server.sendContent(".det-card { background:var(--s1); border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }\n");
-  server.sendContent(".det-field { display:flex; flex-direction:column; gap:2px; }\n");
-  server.sendContent(".det-lbl { font-size:8px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".det-val { font-size:14px; color:#fff; } .det-val.ok { color:var(--ok); } .det-val.warn { color:var(--warn); }\n");
-  server.sendContent(".swatch-inline { width:10px; height:10px; border-radius:2px; display:inline-block; vertical-align:middle; margin-right:4px; }\n");
-  server.sendContent(".th-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); }\n");
-  server.sendContent(".th-row:last-child { border-bottom:none; }\n");
-  server.sendContent(".th-lbl { font-size:11px; color:var(--dim2); }\n");
-  server.sendContent(".th-input { width:58px; background:var(--s2); border:1px solid var(--border2); color:var(--accent); font-family:var(--mono); font-size:12px; padding:3px 7px; border-radius:4px; text-align:right; outline:none; transition:border-color .15s; }\n");
-  server.sendContent(".th-input:focus { border-color:var(--accent); }\n");
-  server.sendContent(".send-btn { width:100%; padding:12px; border-radius:var(--r); border:none; background:var(--accent); color:#000; font-family:var(--mono); font-size:12px; font-weight:500; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:opacity .15s,transform .1s; }\n");
-  server.sendContent(".send-btn:hover { opacity:.85; } .send-btn:active { transform:scale(.98); }\n");
-  server.sendContent("footer { position:relative; z-index:10; flex-shrink:0; background:var(--s1); border-top:1px solid var(--border); padding:0 24px; height:32px; display:flex; align-items:center; overflow:hidden; }\n");
-  server.sendContent(".strip-item { display:flex; align-items:center; gap:6px; padding:0 14px; border-right:1px solid var(--border); height:100%; white-space:nowrap; }\n");
-  server.sendContent(".strip-item:first-child { padding-left:0; }\n");
-  server.sendContent(".strip-key { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".strip-val { font-size:10px; color:var(--text); }\n");
+  server.sendContent(".action-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }\n");
+  server.sendContent(".action-btn { padding:10px 6px; border-radius:var(--r); border:1px solid var(--border2); background:var(--s1); color:var(--dim2); font-family:var(--mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:4px; }\n");
+  server.sendContent(".action-btn .icon { font-size:18px; }\n");
+  server.sendContent(".action-btn:hover { border-color:var(--accent2); color:var(--accent2); background:rgba(11,224,255,.06); }\n");
+  server.sendContent(".action-btn:active { transform:scale(.96); }\n");
+  server.sendContent(".action-btn.danger { border-color:rgba(255,58,92,.3); color:var(--danger); }\n");
+  server.sendContent(".action-btn.danger:hover { background:rgba(255,58,92,.1); border-color:var(--danger); }\n");
+  server.sendContent(".action-btn.warn { border-color:rgba(255,210,48,.3); color:var(--warn); }\n");
+  server.sendContent(".action-btn.warn:hover { background:rgba(255,210,48,.06); border-color:var(--warn); }\n");
   server.sendContent("</style>\n");
   server.sendContent("</head>\n");
   server.sendContent("<body>\n");
@@ -301,9 +301,31 @@ void handleRoot() {
   server.sendContent("    <div class=\"center-top\"><div class=\"donut-wrap\"><canvas id=\"donutChart\" width=\"160\" height=\"160\"></canvas><div class=\"donut-legend\" id=\"donutLegend\"></div></div></div>\n");
   server.sendContent("    <div class=\"center-bottom\"><div class=\"log-head\">Event Log</div><div id=\"eventFeed\"></div></div>\n");
   server.sendContent("  </section>\n");
+  // ── Controls panel ────────────────────────────────────────────────────────
+  server.sendContent("  <section id=\"panel-controls\">\n");
+  // Speed
+  server.sendContent("    <div class=\"ctrl-section\">\n");
+  server.sendContent("      <div class=\"ctrl-label\">Motor Speed</div>\n");
+  server.sendContent("      <div class=\"speed-display\"><div class=\"speed-num\" id=\"speedNum\">100<em>%</em></div><div class=\"speed-label\">conveyor speed</div></div>\n");
+  server.sendContent("      <div class=\"slider-row\"><span class=\"slider-tick\">0</span><input type=\"range\" id=\"speedSlider\" min=\"0\" max=\"200\" value=\"100\" /><span class=\"slider-tick\">200</span></div>\n");
+  server.sendContent("    </div>\n");
+  // Calibration
+  server.sendContent("    <div class=\"ctrl-section\">\n");
+  server.sendContent("      <div class=\"ctrl-label\">Calibration</div>\n");
+  server.sendContent("      <div class=\"action-grid\">\n");
+  server.sendContent("        <button class=\"action-btn\" onclick=\"sendAction('calibrate_wheel')\"><span class=\"icon\">⚙️</span>Wheel</button>\n");
+  server.sendContent("        <button class=\"action-btn\" onclick=\"sendAction('calibrate_colors')\"><span class=\"icon\">🎯</span>Colors</button>\n");
+  server.sendContent("      </div>\n");
+  server.sendContent("    </div>\n");
+  // Pause toggle
+  server.sendContent("    <div class=\"ctrl-section\">\n");
+  server.sendContent("      <div class=\"ctrl-label\">Machine Control</div>\n");
+  server.sendContent("      <button class=\"mode-btn\" id=\"pauseToggle\" onclick=\"togglePause()\" style=\"width:100%;flex-direction:row;gap:10px;justify-content:center;\"><span class=\"icon\" id=\"pauseIcon\">▶️</span><span id=\"pauseLabel\">RUNNING</span></button>\n");
+  server.sendContent("    </div>\n");
+  server.sendContent("  </section>\n");
   server.sendContent("</main>\n");
   server.sendContent("<footer>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Speed</span><span class=\"strip-val\" id=\"notifSpeed\">50%</span></div>\n");
+  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Speed</span><span class=\"strip-val\" id=\"notifSpeed\">100%</span></div>\n");
   server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Mode</span><span class=\"strip-val\" id=\"notifMode\">AUTO</span></div>\n");
   server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">State</span><span class=\"strip-val\" id=\"notifState\">\xe2\x80\x94</span></div>\n");
   server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Last Color</span><span class=\"strip-val\" id=\"notifLastColor\">\xe2\x80\x94</span></div>\n");
@@ -378,6 +400,7 @@ void handleRoot() {
   server.sendContent("  drawDonut({}); syncStrip(); logEvent('Dashboard initialized','ok');\n");
   server.sendContent("  return pub;\n");
   server.sendContent("})();\n");
+  // ── WebSocket ─────────────────────────────────────────────────────────────
   server.sendContent("const ws = new WebSocket('ws://192.168.4.1:81');\n");
   server.sendContent("ws.onopen  = () => { Dashboard.setStatus('online');  Dashboard.logEvent('Connected to CSS machine','ok'); };\n");
   server.sendContent("ws.onclose = () => { Dashboard.setStatus('offline'); Dashboard.logEvent('Connection lost \\u2014 retrying\\u2026','error'); setTimeout(()=>location.reload(),3000); };\n");
@@ -391,6 +414,39 @@ void handleRoot() {
   server.sendContent("  if(msg.type==='state')           Dashboard.updateMachineState(msg.state);\n");
   server.sendContent("  if(msg.type==='detection_final') Dashboard.updateDetection(msg);\n");
   server.sendContent("};\n");
+  // ── Control helpers ───────────────────────────────────────────────────────
+  server.sendContent("function wsSend(obj) {\n");
+  server.sendContent("  if(ws.readyState!==WebSocket.OPEN){Dashboard.logEvent('Not connected','error');return;}\n");
+  server.sendContent("  ws.send(JSON.stringify(obj));\n");
+  server.sendContent("  document.getElementById('notifLastSend').textContent=new Date().toLocaleTimeString('en-GB');\n");
+  server.sendContent("}\n");
+  server.sendContent("function sendAction(action) {\n");
+  server.sendContent("  wsSend({action});\n");
+  server.sendContent("  Dashboard.logEvent('Action sent: ' + action,'info');\n");
+  server.sendContent("}\n");
+  server.sendContent("let paused = false;\n");
+  server.sendContent("function togglePause() {\n");
+  server.sendContent("  paused = !paused;\n");
+  server.sendContent("  sendAction('toggle_pause');\n");
+  server.sendContent("  const btn=document.getElementById('pauseToggle');\n");
+  server.sendContent("  document.getElementById('pauseIcon').textContent = paused ? '⏸️' : '▶️';\n");
+  server.sendContent("  document.getElementById('pauseLabel').textContent = paused ? 'PAUSED' : 'RUNNING';\n");
+  server.sendContent("  btn.style.borderColor = paused ? 'var(--warn)' : 'var(--border2)';\n");
+  server.sendContent("  btn.style.color = paused ? 'var(--warn)' : 'var(--dim2)';\n");
+  server.sendContent("  document.getElementById('notifMode').textContent = paused ? 'PAUSED' : 'RUNNING';\n");
+  server.sendContent("}\n");
+  server.sendContent("(function() {\n");
+  server.sendContent("  const slider=document.getElementById('speedSlider');\n");
+  server.sendContent("  const numEl=document.getElementById('speedNum');\n");
+  server.sendContent("  let timer=null;\n");
+  server.sendContent("  slider.addEventListener('input', () => {\n");
+  server.sendContent("    numEl.innerHTML=slider.value+'<em>%</em>';\n");
+  server.sendContent("    document.getElementById('notifSpeed').textContent=slider.value+'%';\n");
+  server.sendContent("    clearTimeout(timer);\n");
+  // Debounce: only send after user stops dragging for 300 ms; action format: speed_{value}
+  server.sendContent("    timer=setTimeout(()=>{ sendAction(slider.value); },300);\n");
+  server.sendContent("  });\n");
+  server.sendContent("})();\n");
   server.sendContent("</script>\n");
   server.sendContent("</body></html>\n");
 }
