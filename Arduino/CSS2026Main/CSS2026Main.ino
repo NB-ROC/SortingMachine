@@ -60,6 +60,8 @@ bool live = false;
 
 bool paused = false;
 
+bool dancing = false;
+
 struct ContainerConfig {
   int steps;
   int dirLevel;
@@ -111,6 +113,7 @@ void jsonCalibrationPoint(const char* label, const int v[NUM_CHANNELS], long dis
 void jsonCalibrationSaved();
 void jsonCommand(const char* cmd);
 
+
 void setup() {
   Serial.begin(9600);
 
@@ -139,6 +142,8 @@ void setup() {
   jsonEvent("boot");
 }
 
+int wrongCounter = 0;
+
 void loop() {
   if (Serial.available()) {
     String cmd = Serial.readStringUntil("\n");
@@ -156,7 +161,7 @@ void loop() {
       int speed = value.toInt();
 
       const double k = 1000.0;
-      RATE_STEPPER1 = 170000 + k * (100 - speed);
+      RATE_STEPPER1 = 165000 + k * (100 - speed);
       return;
     } else if (action == "calibrate_wheel") {
       getToPoint();
@@ -165,7 +170,7 @@ void loop() {
       jsonCommand("calibrate");
       calibrateManual();
       return;
-    } else if (action == "toggle_pause"){
+    } else if (action == "toggle_pause") {
       paused = !paused;
       return;
     }
@@ -204,6 +209,16 @@ void loop() {
       getToPoint();
       return;
     }
+
+    // if (charCMD = 'D' || charCMD == 'd') {
+    //   dancing = !dancing;
+    //   return;
+    // }
+  }
+
+  if (dancing) {
+    dance();
+    return;
   }
 
   if (paused == false) {
@@ -217,7 +232,7 @@ void loop() {
     returnStep2();
 
     if (det.color != UNKNOWN) {
-      delay(100);
+      delay(500);
 
       jsonState("sort_move");
       moveStep2ToColor(det.color);
@@ -228,19 +243,155 @@ void loop() {
   }
 }
 
+void dancePulse(int stepPin, int dirPin, double steps, int rate, int pulses) {
+  for (int i = 0; i < pulses; i++) {
+    stepMotor(stepPin, dirPin, steps, rate);
+    delay(30);
+    stepMotor(stepPin, dirPin, -steps, rate);
+    delay(30);
+  }
+}
+
+void danceRevUp(int stepPin, int dirPin, double steps) {
+  // Accelerate then slam back
+  for (int rate = RATE_STEPPER1; rate > RATE_STEPPER1 / 5; rate -= RATE_STEPPER1 / 10) {
+    stepMotor(stepPin, dirPin, steps / 5, rate);
+  }
+  delay(80);
+  stepMotor(stepPin, dirPin, -steps, RATE_STEPPER1 / 2);
+}
+
+void dance() {
+  jsonEvent("dance_start");
+
+  // === ACT 1: Wake up stretch ===
+  // Slow yawn, both motors extend and retract
+  stepMotor(stepPin1, dirPin1, 35.0, RATE_STEPPER1);
+  stepMotor(stepPin2, dirPin2, 18.0, RATE_STEPPER2);
+  delay(200);
+  stepMotor(stepPin2, dirPin2, -18.0, RATE_STEPPER2);
+  stepMotor(stepPin1, dirPin1, -35.0, RATE_STEPPER1);
+  delay(200);
+
+  // === ACT 2: Head bob ===
+  // Motor 1 bobs rhythmically, increasing tempo
+  for (int i = 0; i < 6; i++) {
+    int rate = RATE_STEPPER1 - i * (RATE_STEPPER1 / 10);
+    stepMotor(stepPin1, dirPin1, 12.0, rate);
+    stepMotor(stepPin1, dirPin1, -12.0, rate);
+    delay(20);
+  }
+
+  // === ACT 3: The wiggle ===
+  // Motor 2 does quick side-to-side while motor 1 does slow sway
+  for (int i = 0; i < 5; i++) {
+    stepMotor(stepPin2, dirPin2, 12.0, RATE_STEPPER2 / 3);
+    stepMotor(stepPin1, dirPin1, 6.0, RATE_STEPPER1 / 2);
+    stepMotor(stepPin2, dirPin2, -24.0, RATE_STEPPER2 / 3);
+    stepMotor(stepPin1, dirPin1, -6.0, RATE_STEPPER1 / 2);
+    stepMotor(stepPin2, dirPin2, 12.0, RATE_STEPPER2 / 3);
+    delay(40);
+  }
+
+  // === ACT 4: Rev up and slam ===
+  danceRevUp(stepPin1, dirPin1, 40.0);
+  delay(100);
+  danceRevUp(stepPin2, dirPin2, 20.0);
+  delay(100);
+
+  // === ACT 5: The robot ===
+  // Sharp mechanical steps, pause between each
+  int robotMoves[][2] = {
+    { 20, 10 }, { -20, -10 }, { 15, -8 }, { -15, 8 }, { 25, 0 }, { -25, 12 }
+  };
+  for (int i = 0; i < 6; i++) {
+    stepMotor(stepPin1, dirPin1, robotMoves[i][0], RATE_STEPPER1 / 3);
+    stepMotor(stepPin2, dirPin2, robotMoves[i][1], RATE_STEPPER2 / 2);
+    delay(120);
+  }
+
+  // === ACT 6: Spin out ===
+  // Motor 2 rapid flutter while motor 1 does a slow full sweep
+  for (int i = 0; i < 8; i++) {
+    stepMotor(stepPin2, dirPin2, 8.0, RATE_STEPPER2 / 4);
+    stepMotor(stepPin2, dirPin2, -8.0, RATE_STEPPER2 / 4);
+  }
+  stepMotor(stepPin1, dirPin1, 45.0, RATE_STEPPER1 / 4);
+  delay(100);
+  stepMotor(stepPin1, dirPin1, -45.0, RATE_STEPPER1 / 4);
+
+  // === FINALE: Chaos burst then bow ===
+  for (int i = 0; i < 5; i++) {
+    stepMotor(stepPin1, dirPin1, 15.0, RATE_STEPPER1 / 5);
+    stepMotor(stepPin2, dirPin2, 12.0, RATE_STEPPER2 / 4);
+    delay(40);
+    stepMotor(stepPin1, dirPin1, -15.0, RATE_STEPPER1 / 5);
+    stepMotor(stepPin2, dirPin2, -12.0, RATE_STEPPER2 / 4);
+    delay(40);
+  }
+
+  // Bow: slow lean forward, pause, come back up
+  stepMotor(stepPin1, dirPin1, 30.0, RATE_STEPPER1);
+  delay(500);
+  stepMotor(stepPin1, dirPin1, -30.0, RATE_STEPPER1);
+
+  jsonEvent("dance_end");
+}
+
 void getToPoint() {
   DetectionResult result;
+  int loopAmount = 0;
 
   do {
-    stepMotor(stepPin1, 4.0, RATE_STEPPER1);
+    stepMotor(stepPin1, dirPin1, 4, RATE_STEPPER1);
     result = readStableColor();
-  } while (result.c <= 31);
 
-  result = readStableColor();
+    loopAmount++;
 
-  if (result.c < 32) {
-    stepMotor(stepPin1, 2.0, RATE_STEPPER1);
+    if (loopAmount > 360) {
+      break;
+    }
+
+  } while (result.c <= 32);
+
+  int currentPos = 0;
+  int bestPos = 0;
+  int bestC = result.c;
+  double offset = 8;
+
+  while (offset >= 0.5) {
+    // try +offset from bestPos
+    int target = bestPos + offset;
+    stepMotor(stepPin1, dirPin1, target - currentPos, RATE_STEPPER1);
+    currentPos = target;
+
+    DetectionResult r = readStableColor();
+    if (r.c > bestC) {
+      bestC = r.c;
+      bestPos = currentPos;
+    }
+
+    // try -offset from bestPos
+    target = bestPos - offset;
+    stepMotor(stepPin1, dirPin1, target - currentPos, RATE_STEPPER1);
+    currentPos = target;
+
+    r = readStableColor();
+    if (r.c > bestC) {
+      bestC = r.c;
+      bestPos = currentPos;
+    }
+
+    offset /= 2;
   }
+
+  delay(100);
+
+  stepMotor(stepPin1, dirPin1, bestPos - currentPos, RATE_STEPPER1);
+
+  jsonState("location_calibrated");
+
+  delay(100);
 }
 
 int computeConfidence(long bestDist, long separation) {
@@ -256,7 +407,7 @@ int computeConfidence(long bestDist, long separation) {
 }
 
 void stepMotor(int stepPin, double steps, int rateUs) {
-  if (steps > MAX_STEPS) {
+  if (steps > MAX_STEPS || steps < MAX_STEPS * -1) {
     return;
   }
 
@@ -266,6 +417,24 @@ void stepMotor(int stepPin, double steps, int rateUs) {
     digitalWrite(stepPin, LOW);
     delayMicroseconds(rateUs);
   }
+}
+
+void stepMotor(int stepPin, int dirPin, double steps, int rateUs) {
+  if (steps > MAX_STEPS || steps < MAX_STEPS * -1) return;
+
+  if (steps < 0) {
+    digitalWrite(dirPin, !digitalRead(dirPin));
+    steps = -steps;
+  }
+
+  for (int i = 0; i < steps; i++) {
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(rateUs);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(rateUs);
+  }
+
+  digitalWrite(dirPin, INDEX_DIR);
 }
 
 void index90Step1() {
@@ -562,7 +731,7 @@ void jsonDetectionSample(const DetectionResult& d, int attempt, int consecutive)
   Serial.print(d.separation);
   Serial.print(F(",\"consecutive\":"));
   Serial.print(consecutive);
-  Serial.print(F("\",\"accuracy\":"));
+  Serial.print(F(",\"accuracy\":"));
   Serial.print(computeConfidence(d.bestDist, d.separation));
   Serial.print(F(",\"rgbc\":{\"r\":"));
   Serial.print(d.r);
