@@ -4,4 +4,4 @@ CSS or Color Sortof Sorter is a small embeded systems project we picked up for o
 
 ## contributors:
 
-Cas, Bryan, Jia, Morris, Max
+Cas, Bryan, Morris, Max
