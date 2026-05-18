@@ -1,3 +1,5 @@
+extern WebServer server;
+
 void handleRoot() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");

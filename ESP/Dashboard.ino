@@ -3,13 +3,15 @@
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
 
+#include "html.h"
+
 const char* AP_SSID = "CSS";
 const char* AP_PASS = "css2026";
 
 #define SERIAL2_RX 16
 #define SERIAL2_TX 17
 
-WebServer       server(80);
+WebServer server(80);
 WebSocketsServer webSocket(81);
 
 // Machine state
