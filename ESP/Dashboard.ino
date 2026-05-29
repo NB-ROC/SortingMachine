@@ -3,32 +3,33 @@
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
 
+#include "html.h"
+
 const char* AP_SSID = "CSS";
 const char* AP_PASS = "css2026";
 
 #define SERIAL2_RX 16
 #define SERIAL2_TX 17
 
-// ── Global server / socket objects ──────────────────────────────────────────
-WebServer       server(80);
+WebServer server(80);
 WebSocketsServer webSocket(81);
 
-// ── Machine state ────────────────────────────────────────────────────────────
+// Machine state
 struct {
-  int    colorCounts[5] = { 0, 0, 0, 0, 0 };
-  int    totalSorted    = 0;
-  String currentState   = "";
-  String lastColor      = "unknown";
+  int colorCounts[5] = { 0, 0, 0, 0, 0 };
+  int totalSorted = 0;
+  String currentState = "";
+  String lastColor = "unknown";
   unsigned long uptimeStart = 0;
 } MachineData;
 
-// ── Controls (received from dashboard) ───────────────────────────────────────
+// Controls
 struct {
-  int    speed = 50;
-  String mode  = "auto";
+  int speed = 50;
+  String mode = "auto";
 } controls;
 
-// ── Read JSON lines from Arduino over Serial2 ─────────────────────────────────
+// Read JSON from Arduino
 void readPin() {
   if (!Serial2.available()) return;
 
@@ -64,7 +65,7 @@ void readPin() {
   }
 }
 
-// ── Broadcast telemetry to all WebSocket clients ──────────────────────────────
+// Update Dashboard
 void updateDashboard() {
   StaticJsonDocument<512> doc;
 
@@ -89,7 +90,15 @@ void updateDashboard() {
   webSocket.broadcastTXT(json);
 }
 
-// ── WebSocket event handler ───────────────────────────────────────────────────
+// Send an action
+void sendAction(StaticJsonDocument<256>& doc) {
+  String json;
+  serializeJson(doc, json);
+  Serial2.println(json);
+  Serial.println(json);
+}
+
+// WebSocket event handler
 void onWebSocketEvent(uint8_t client, WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_CONNECTED) {
     Serial.printf("WS client %u connected\n", client);
@@ -100,309 +109,20 @@ void onWebSocketEvent(uint8_t client, WStype_t type, uint8_t* payload, size_t le
     DeserializationError err = deserializeJson(doc, payload, length);
     if (err) return;
 
-    // if (doc.containsKey("speed")) controls.speed = doc["speed"];
-    // if (doc.containsKey("mode"))  controls.mode  = doc["mode"].as<String>();
-
-    // Serial.printf("Controls updated: speed=%d mode=%s\n",
-    //               controls.speed, controls.mode.c_str());
-    // forwardControlsToArduino();
+    if (doc.containsKey("action")) {
+      sendAction(doc);
+    }
   }
 }
 
-// ── Forward controls to downstream Arduino over Serial2 ──────────────────────
-void forwardControlsToArduino() {
-  StaticJsonDocument<128> doc;
-  doc["speed"] = controls.speed;
-  doc["mode"]  = controls.mode;
-
-  String json;
-  serializeJson(doc, json);
-  Serial2.println(json);
-}
-
-void handleRoot() {
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, "text/html", "");
-
-  server.sendContent("<!DOCTYPE html>\n");
-  server.sendContent("<html lang=\"en\">\n");
-  server.sendContent("<head>\n");
-  server.sendContent("<meta charset=\"UTF-8\" />\n");
-  server.sendContent("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n");
-  server.sendContent("<title>CSS — Machine Dashboard</title>\n");
-  server.sendContent("<link href=\"https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap\" rel=\"stylesheet\" />\n");
-  server.sendContent("<style>\n");
-  server.sendContent(":root {\n");
-  server.sendContent("  --bg:       #080a0d;\n");
-  server.sendContent("  --s1:       #0d1017;\n");
-  server.sendContent("  --s2:       #111520;\n");
-  server.sendContent("  --border:   #1c2235;\n");
-  server.sendContent("  --border2:  #252d42;\n");
-  server.sendContent("  --text:     #c8d3e8;\n");
-  server.sendContent("  --dim:      #4a566e;\n");
-  server.sendContent("  --dim2:     #6b7a95;\n");
-  server.sendContent("  --accent:   #3df5c4;\n");
-  server.sendContent("  --accent2:  #0be0ff;\n");
-  server.sendContent("  --danger:   #ff3a5c;\n");
-  server.sendContent("  --warn:     #ffd230;\n");
-  server.sendContent("  --ok:       #3df5c4;\n");
-  server.sendContent("  --mono:     'DM Mono', monospace;\n");
-  server.sendContent("  --sans:     'Syne', sans-serif;\n");
-  server.sendContent("  --r:        6px;\n");
-  server.sendContent("}\n");
-  server.sendContent("*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n");
-  server.sendContent("html, body { height: 100%; }\n");
-  server.sendContent("body {\n");
-  server.sendContent("  background: var(--bg); color: var(--text); font-family: var(--mono);\n");
-  server.sendContent("  font-size: 13px; min-height: 100vh; display: flex; flex-direction: column; overflow: hidden;\n");
-  server.sendContent("}\n");
-  server.sendContent("body::after {\n");
-  server.sendContent("  content: ''; position: fixed; inset: 0;\n");
-  server.sendContent("  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 3px);\n");
-  server.sendContent("  pointer-events: none; z-index: 9999;\n");
-  server.sendContent("}\n");
-  server.sendContent("body::before {\n");
-  server.sendContent("  content: ''; position: fixed; inset: 0;\n");
-  server.sendContent("  background-image: linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);\n");
-  server.sendContent("  background-size: 40px 40px; pointer-events: none; z-index: 0;\n");
-  server.sendContent("}\n");
-  server.sendContent("header {\n");
-  server.sendContent("  position: relative; z-index: 10; display: flex; align-items: center;\n");
-  server.sendContent("  justify-content: space-between; padding: 0 24px; height: 56px;\n");
-  server.sendContent("  border-bottom: 1px solid var(--border); background: var(--s1); flex-shrink: 0;\n");
-  server.sendContent("}\n");
-  server.sendContent(".logo { display:flex; align-items:center; gap:14px; }\n");
-  server.sendContent(".logo-mark { position:relative; width:34px; height:34px; display:flex; align-items:center; justify-content:center; }\n");
-  server.sendContent(".logo-mark-ring {\n");
-  server.sendContent("  position:absolute; inset:0; border-radius:50%; border:2px solid transparent;\n");
-  server.sendContent("  background:conic-gradient(var(--danger) 0% 25%,var(--warn) 25% 50%,var(--ok) 50% 75%,var(--accent2) 75%) border-box;\n");
-  server.sendContent("  -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);\n");
-  server.sendContent("  -webkit-mask-composite:destination-out; mask-composite:exclude;\n");
-  server.sendContent("  animation:ring-spin 6s linear infinite;\n");
-  server.sendContent("}\n");
-  server.sendContent("@keyframes ring-spin { to { transform:rotate(360deg); } }\n");
-  server.sendContent(".logo-mark-inner { width:18px; height:18px; border-radius:4px; background:var(--s2); border:1px solid var(--border2); }\n");
-  server.sendContent(".logo-text h1 { font-family:var(--sans); font-size:17px; font-weight:800; color:#fff; letter-spacing:4px; line-height:1; }\n");
-  server.sendContent(".logo-text sub { font-family:var(--mono); font-size:9px; color:var(--dim); letter-spacing:2px; text-transform:uppercase; }\n");
-  server.sendContent(".header-center { position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; }\n");
-  server.sendContent(".header-pill { padding:5px 12px; border-radius:20px; border:1px solid var(--border2); background:var(--s2); font-size:10px; letter-spacing:2px; color:var(--dim2); text-transform:uppercase; }\n");
-  server.sendContent(".header-right { display:flex; align-items:center; gap:16px; }\n");
-  server.sendContent(".status-pill { display:flex; align-items:center; gap:8px; padding:5px 13px; border-radius:4px; border:1px solid var(--border2); background:var(--s2); font-size:10px; letter-spacing:2px; text-transform:uppercase; }\n");
-  server.sendContent(".dot { width:6px; height:6px; border-radius:50%; background:var(--ok); box-shadow:0 0 10px var(--ok); animation:blink 2.5s ease-in-out infinite; }\n");
-  server.sendContent("@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }\n");
-  server.sendContent(".clock { font-size:14px; color:var(--accent2); letter-spacing:1px; }\n");
-  server.sendContent("main {\n");
-  server.sendContent("  position:relative; z-index:1; flex:1; display:grid;\n");
-  server.sendContent("  grid-template-columns:240px 1fr 264px; grid-template-rows:120px 1fr;\n");
-  server.sendContent("  gap:1px; background:var(--border); overflow:hidden; min-height:0;\n");
-  server.sendContent("}\n");
-  server.sendContent("section { background:var(--bg); overflow:auto; padding:18px; scrollbar-width:thin; scrollbar-color:var(--border2) transparent; }\n");
-  server.sendContent("section::-webkit-scrollbar { width:3px; } section::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }\n");
-  server.sendContent(".kpi-strip { grid-column:1/-1; grid-row:1; display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); }\n");
-  server.sendContent(".kpi { background:var(--s1); padding:0 24px; display:flex; flex-direction:column; justify-content:center; gap:5px; position:relative; overflow:hidden; }\n");
-  server.sendContent(".kpi::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--accent); opacity:.6; }\n");
-  server.sendContent(".kpi:nth-child(2)::before { background:var(--accent2); }\n");
-  server.sendContent(".kpi:nth-child(3)::before { background:var(--warn); }\n");
-  server.sendContent(".kpi:nth-child(4)::before { background:var(--dim2); }\n");
-  server.sendContent(".kpi-label { font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".kpi-value { font-family:var(--sans); font-size:28px; font-weight:700; color:#fff; line-height:1; display:flex; align-items:baseline; gap:5px; }\n");
-  server.sendContent(".kpi-value em { font-style:normal; font-size:12px; font-family:var(--mono); color:var(--dim2); font-weight:400; }\n");
-  server.sendContent(".kpi-sub { font-size:10px; color:var(--dim); }\n");
-  server.sendContent("#panel-colors { grid-column:1; grid-row:2; }\n");
-  server.sendContent(".panel-head { display:flex; align-items:center; gap:10px; margin-bottom:16px; }\n");
-  server.sendContent(".panel-head-label { font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".panel-head::after { content:''; flex:1; height:1px; background:var(--border); }\n");
-  server.sendContent(".color-row { margin-bottom:14px; }\n");
-  server.sendContent(".color-row-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }\n");
-  server.sendContent(".color-id { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:1px; color:var(--text); }\n");
-  server.sendContent(".swatch { width:10px; height:10px; border-radius:2px; flex-shrink:0; }\n");
-  server.sendContent(".color-num { font-size:12px; color:var(--text); }\n");
-  server.sendContent(".track { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-bottom:3px; }\n");
-  server.sendContent(".fill { height:100%; border-radius:2px; transition:width .8s cubic-bezier(.4,0,.2,1); min-width:2px; }\n");
-  server.sendContent(".pct { font-size:9px; color:var(--dim); text-align:right; }\n");
-  server.sendContent("#panel-center { grid-column:2; grid-row:2; display:flex; flex-direction:column; gap:0; padding:0; }\n");
-  server.sendContent(".center-top { padding:18px 22px; border-bottom:1px solid var(--border); display:flex; gap:20px; align-items:center; justify-content:center; flex-shrink:0; }\n");
-  server.sendContent(".donut-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }\n");
-  server.sendContent("canvas#donutChart { filter:drop-shadow(0 0 18px rgba(61,245,196,.1)); }\n");
-  server.sendContent(".donut-legend { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:center; }\n");
-  server.sendContent(".leg { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--dim2); }\n");
-  server.sendContent(".leg-dot { width:7px; height:7px; border-radius:50%; }\n");
-  server.sendContent(".center-bottom { flex:1; overflow:hidden; display:flex; flex-direction:column; min-height:0; }\n");
-  server.sendContent(".log-head { display:flex; align-items:center; gap:10px; padding:12px 22px; border-bottom:1px solid var(--border); font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; flex-shrink:0; }\n");
-  server.sendContent(".log-head::after { content:''; flex:1; height:1px; background:var(--border); }\n");
-  server.sendContent("#eventFeed { flex:1; overflow-y:auto; padding:10px 22px; display:flex; flex-direction:column; gap:4px; scrollbar-width:thin; scrollbar-color:var(--border2) transparent; }\n");
-  server.sendContent("#eventFeed::-webkit-scrollbar { width:3px; } #eventFeed::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }\n");
-  server.sendContent(".feed-row { display:flex; align-items:center; gap:10px; padding:6px 9px; border-radius:var(--r); background:var(--s1); border-left:2px solid var(--border2); font-size:11px; animation:slide-in .25s ease; }\n");
-  server.sendContent("@keyframes slide-in { from { opacity:0; transform:translateY(-4px); } }\n");
-  server.sendContent(".feed-time { color:var(--dim); flex-shrink:0; font-size:10px; } .feed-msg { color:var(--text); flex:1; }\n");
-  server.sendContent(".feed-badge { padding:1px 6px; border-radius:3px; font-size:9px; letter-spacing:1px; flex-shrink:0; }\n");
-  server.sendContent("#panel-controls { grid-column:3; grid-row:2; display:flex; flex-direction:column; gap:0; padding:0; overflow:auto; }\n");
-  server.sendContent(".ctrl-section { padding:16px 18px; border-bottom:1px solid var(--border); }\n");
-  server.sendContent(".ctrl-section:last-child { border-bottom:none; }\n");
-  server.sendContent(".speed-display { display:flex; flex-direction:column; align-items:center; gap:8px; padding:4px 0 12px; }\n");
-  server.sendContent(".speed-num { font-family:var(--sans); font-size:52px; font-weight:800; color:#fff; line-height:1; letter-spacing:-2px; }\n");
-  server.sendContent(".speed-num em { font-style:normal; font-size:18px; color:var(--dim2); letter-spacing:0; }\n");
-  server.sendContent(".speed-label { font-size:9px; letter-spacing:3px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".slider-row { display:flex; align-items:center; gap:8px; width:100%; }\n");
-  server.sendContent(".slider-tick { font-size:9px; color:var(--dim); width:18px; text-align:center; }\n");
-  server.sendContent("input[type=range] { flex:1; -webkit-appearance:none; height:3px; border-radius:2px; background:var(--border2); outline:none; cursor:pointer; }\n");
-  server.sendContent("input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); cursor:pointer; transition:transform .15s; }\n");
-  server.sendContent("input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.4); }\n");
-  server.sendContent(".mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }\n");
-  server.sendContent(".mode-btn { padding:9px 6px; border-radius:var(--r); border:1px solid var(--border2); background:var(--s1); color:var(--dim2); font-family:var(--mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }\n");
-  server.sendContent(".mode-btn .icon { font-size:16px; }\n");
-  server.sendContent(".mode-btn:hover { border-color:var(--accent); color:var(--accent); }\n");
-  server.sendContent(".mode-btn.active { background:var(--accent); border-color:var(--accent); color:#000; font-weight:500; }\n");
-  server.sendContent(".mode-btn.danger { border-color:rgba(255,58,92,.4); color:var(--danger); }\n");
-  server.sendContent(".mode-btn.danger:hover,.mode-btn.danger.active { background:var(--danger); border-color:var(--danger); color:#fff; }\n");
-  server.sendContent(".det-card { background:var(--s1); border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }\n");
-  server.sendContent(".det-field { display:flex; flex-direction:column; gap:2px; }\n");
-  server.sendContent(".det-lbl { font-size:8px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".det-val { font-size:14px; color:#fff; } .det-val.ok { color:var(--ok); } .det-val.warn { color:var(--warn); }\n");
-  server.sendContent(".swatch-inline { width:10px; height:10px; border-radius:2px; display:inline-block; vertical-align:middle; margin-right:4px; }\n");
-  server.sendContent(".th-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); }\n");
-  server.sendContent(".th-row:last-child { border-bottom:none; }\n");
-  server.sendContent(".th-lbl { font-size:11px; color:var(--dim2); }\n");
-  server.sendContent(".th-input { width:58px; background:var(--s2); border:1px solid var(--border2); color:var(--accent); font-family:var(--mono); font-size:12px; padding:3px 7px; border-radius:4px; text-align:right; outline:none; transition:border-color .15s; }\n");
-  server.sendContent(".th-input:focus { border-color:var(--accent); }\n");
-  server.sendContent(".send-btn { width:100%; padding:12px; border-radius:var(--r); border:none; background:var(--accent); color:#000; font-family:var(--mono); font-size:12px; font-weight:500; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:opacity .15s,transform .1s; }\n");
-  server.sendContent(".send-btn:hover { opacity:.85; } .send-btn:active { transform:scale(.98); }\n");
-  server.sendContent("footer { position:relative; z-index:10; flex-shrink:0; background:var(--s1); border-top:1px solid var(--border); padding:0 24px; height:32px; display:flex; align-items:center; overflow:hidden; }\n");
-  server.sendContent(".strip-item { display:flex; align-items:center; gap:6px; padding:0 14px; border-right:1px solid var(--border); height:100%; white-space:nowrap; }\n");
-  server.sendContent(".strip-item:first-child { padding-left:0; }\n");
-  server.sendContent(".strip-key { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }\n");
-  server.sendContent(".strip-val { font-size:10px; color:var(--text); }\n");
-  server.sendContent("</style>\n");
-  server.sendContent("</head>\n");
-  server.sendContent("<body>\n");
-  server.sendContent("<header>\n");
-  server.sendContent("  <div class=\"logo\">\n");
-  server.sendContent("    <div class=\"logo-mark\"><div class=\"logo-mark-ring\"></div><div class=\"logo-mark-inner\"></div></div>\n");
-  server.sendContent("    <div class=\"logo-text\"><h1>CSS</h1><sub>Machine Control</sub></div>\n");
-  server.sendContent("  </div>\n");
-  server.sendContent("  <div class=\"header-center\"><div class=\"header-pill\">SORT STATION 01</div></div>\n");
-  server.sendContent("  <div class=\"header-right\">\n");
-  server.sendContent("    <div class=\"status-pill\"><span class=\"dot\" id=\"statusDot\"></span><span id=\"statusText\">ONLINE</span></div>\n");
-  server.sendContent("    <div class=\"clock\" id=\"clockDisplay\">00:00:00</div>\n");
-  server.sendContent("  </div>\n");
-  server.sendContent("</header>\n");
-  server.sendContent("<main>\n");
-  server.sendContent("  <div class=\"kpi-strip\">\n");
-  server.sendContent("    <div class=\"kpi\"><div class=\"kpi-label\">Total Sorted</div><div class=\"kpi-value\" id=\"kpiTotal\">0 <em>units</em></div><div class=\"kpi-sub\">—</div></div>\n");
-  server.sendContent("    <div class=\"kpi\"><div class=\"kpi-label\">Sort Rate</div><div class=\"kpi-value\" id=\"kpiRate\">0 <em>/ min</em></div><div class=\"kpi-sub\">live throughput</div></div>\n");
-  server.sendContent("    <div class=\"kpi\"><div class=\"kpi-label\">Machine State</div><div class=\"kpi-value\" id=\"kpiState\" style=\"font-size:18px;font-family:var(--mono);font-weight:400;\">—</div><div class=\"kpi-sub\">—</div></div>\n");
-  server.sendContent("    <div class=\"kpi\"><div class=\"kpi-label\">Uptime</div><div class=\"kpi-value\" id=\"kpiUptime\" style=\"font-size:22px;font-family:var(--mono);font-weight:400;\">00:00:00</div><div class=\"kpi-sub\">session</div></div>\n");
-  server.sendContent("  </div>\n");
-  server.sendContent("  <section id=\"panel-colors\">\n");
-  server.sendContent("    <div class=\"panel-head\"><span class=\"panel-head-label\">Color Breakdown</span></div>\n");
-  server.sendContent("    <div id=\"colorBars\"><p style=\"color:var(--dim);font-size:10px;letter-spacing:1px;\">AWAITING DATA\xe2\x80\xa6</p></div>\n");
-  server.sendContent("  </section>\n");
-  server.sendContent("  <section id=\"panel-center\">\n");
-  server.sendContent("    <div class=\"center-top\"><div class=\"donut-wrap\"><canvas id=\"donutChart\" width=\"160\" height=\"160\"></canvas><div class=\"donut-legend\" id=\"donutLegend\"></div></div></div>\n");
-  server.sendContent("    <div class=\"center-bottom\"><div class=\"log-head\">Event Log</div><div id=\"eventFeed\"></div></div>\n");
-  server.sendContent("  </section>\n");
-  server.sendContent("</main>\n");
-  server.sendContent("<footer>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Speed</span><span class=\"strip-val\" id=\"notifSpeed\">50%</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Mode</span><span class=\"strip-val\" id=\"notifMode\">AUTO</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">State</span><span class=\"strip-val\" id=\"notifState\">\xe2\x80\x94</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Last Color</span><span class=\"strip-val\" id=\"notifLastColor\">\xe2\x80\x94</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Sep</span><span class=\"strip-val\" id=\"notifSep\">\xe2\x80\x94</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">RGB</span><span class=\"strip-val\" id=\"notifRgb\">\xe2\x80\x94</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Confidence</span><span class=\"strip-val\" id=\"notifConf\">85%</span></div>\n");
-  server.sendContent("  <div class=\"strip-item\"><span class=\"strip-key\">Last Send</span><span class=\"strip-val\" id=\"notifLastSend\">\xe2\x80\x94</span></div>\n");
-  server.sendContent("</footer>\n");
-  server.sendContent("<script>\n");
-  server.sendContent("const Dashboard = (() => {\n");
-  server.sendContent("  const state = { colors:{}, stats:{totalSorted:0,sortRate:0,uptime:0}, status:'online', speed:50, mode:'auto', thresholds:{confidence:85,rejectLimit:10,sensitivity:7} };\n");
-  server.sendContent("  const PALETTE = { red:'#ff3a5c',green:'#3df5c4',blue:'#0be0ff',yellow:'#ffd230',brown:'#c8854a',orange:'#ff8c00',purple:'#b44fff',white:'#e8ecf4',black:'#4a566e',pink:'#ff6eb4',cyan:'#00e5ff',gray:'#6b7a95',grey:'#6b7a95' };\n");
-  server.sendContent("  const FALLBACKS = ['#ff6eb4','#7fff00','#ff8c00','#b44fff','#00cfff','#ffaa33'];\n");
-  server.sendContent("  let fbIdx = 0;\n");
-  server.sendContent("  const getColor = n => { const k=n.toLowerCase(); if(!PALETTE[k]) PALETTE[k]=FALLBACKS[fbIdx++%FALLBACKS.length]; return PALETTE[k]; };\n");
-  server.sendContent("  const $ = id => document.getElementById(id);\n");
-  server.sendContent("  setInterval(() => $('clockDisplay').textContent = new Date().toLocaleTimeString('en-GB'), 1000);\n");
-  server.sendContent("  $('clockDisplay').textContent = new Date().toLocaleTimeString('en-GB');\n");
-  server.sendContent("  const ctx = $('donutChart').getContext('2d');\n");
-  server.sendContent("  function drawDonut(data) {\n");
-  server.sendContent("    const W=160,cx=80,cy=80,ro=66,ri=40;\n");
-  server.sendContent("    const total=Object.values(data).reduce((a,b)=>a+b,0)||1;\n");
-  server.sendContent("    ctx.clearRect(0,0,W,W);\n");
-  server.sendContent("    ctx.beginPath(); ctx.arc(cx,cy,ro,0,Math.PI*2); ctx.arc(cx,cy,ri,0,Math.PI*2,true); ctx.fillStyle='#111520'; ctx.fill();\n");
-  server.sendContent("    let start=-Math.PI/2;\n");
-  server.sendContent("    for(const [name,count] of Object.entries(data)) {\n");
-  server.sendContent("      const slice=(count/total)*Math.PI*2;\n");
-  server.sendContent("      ctx.beginPath(); ctx.moveTo(cx+ri*Math.cos(start),cy+ri*Math.sin(start));\n");
-  server.sendContent("      ctx.arc(cx,cy,ro,start,start+slice); ctx.arc(cx,cy,ri,start+slice,start,true);\n");
-  server.sendContent("      ctx.closePath(); ctx.fillStyle=getColor(name); ctx.fill(); start+=slice;\n");
-  server.sendContent("    }\n");
-  server.sendContent("    ctx.textAlign='center'; ctx.textBaseline='middle';\n");
-  server.sendContent("    ctx.fillStyle='#fff'; ctx.font='bold 20px Syne'; ctx.fillText(total,cx,cy-7);\n");
-  server.sendContent("    ctx.fillStyle='#4a566e'; ctx.font='9px DM Mono'; ctx.fillText('TOTAL',cx,cy+11);\n");
-  server.sendContent("  }\n");
-  server.sendContent("  function updateLegend(data) {\n");
-  server.sendContent("    const total=Object.values(data).reduce((a,b)=>a+b,0)||1;\n");
-  server.sendContent("    $('donutLegend').innerHTML=Object.entries(data).map(([n,c])=>`<div class=\"leg\"><div class=\"leg-dot\" style=\"background:${getColor(n)}\"></div>${n} <span style=\"color:#fff;margin-left:3px\">${((c/total)*100).toFixed(0)}%</span></div>`).join('');\n");
-  server.sendContent("  }\n");
-  server.sendContent("  function renderColorBars(data) {\n");
-  server.sendContent("    if(!Object.keys(data).length) return;\n");
-  server.sendContent("    const total=Object.values(data).reduce((a,b)=>a+b,0)||1;\n");
-  server.sendContent("    $('colorBars').innerHTML=Object.entries(data).sort((a,b)=>b[1]-a[1]).map(([name,count])=>{\n");
-  server.sendContent("      const pct=((count/total)*100).toFixed(1),col=getColor(name);\n");
-  server.sendContent("      return `<div class=\"color-row\"><div class=\"color-row-head\"><div class=\"color-id\"><div class=\"swatch\" style=\"background:${col}\"></div>${name}</div><span class=\"color-num\">${count.toLocaleString()}</span></div><div class=\"track\"><div class=\"fill\" style=\"width:${pct}%;background:${col}\"></div></div><div class=\"pct\">${pct}%</div></div>`;\n");
-  server.sendContent("    }).join('');\n");
-  server.sendContent("  }\n");
-  server.sendContent("  function renderStats(s) {\n");
-  server.sendContent("    $('kpiTotal').innerHTML=`${Number(s.totalSorted).toLocaleString()} <em>units</em>`;\n");
-  server.sendContent("    $('kpiRate').innerHTML=`${s.sortRate} <em>/ min</em>`;\n");
-  server.sendContent("    let u=s.uptime; if(typeof u==='number'){const h=Math.floor(u/3600).toString().padStart(2,'0'),m=Math.floor((u%3600)/60).toString().padStart(2,'0'),sc=(u%60).toString().padStart(2,'0');u=`${h}:${m}:${sc}`;}\n");
-  server.sendContent("    $('kpiUptime').textContent=u||'00:00:00';\n");
-  server.sendContent("  }\n");
-  server.sendContent("  const SEV={info:{bg:'#0d1e30',color:'#0be0ff',label:'INFO'},warn:{bg:'#221c00',color:'#ffd230',label:'WARN'},error:{bg:'#220010',color:'#ff3a5c',label:'ERROR'},ok:{bg:'#001a14',color:'#3df5c4',label:'OK'}};\n");
-  server.sendContent("  function logEvent(msg,sev='info') {\n");
-  server.sendContent("    const feed=$('eventFeed'),s=SEV[sev]||SEV.info,time=new Date().toLocaleTimeString('en-GB');\n");
-  server.sendContent("    const row=document.createElement('div'); row.className='feed-row'; row.style.borderLeftColor=s.color;\n");
-  server.sendContent("    row.innerHTML=`<span class=\"feed-time\">${time}</span><span class=\"feed-msg\">${msg}</span><span class=\"feed-badge\" style=\"background:${s.bg};color:${s.color}\">${s.label}</span>`;\n");
-  server.sendContent("    feed.prepend(row); while(feed.children.length>80) feed.removeChild(feed.lastChild);\n");
-  server.sendContent("  }\n");
-  server.sendContent("  const STATUS_CFG={online:{dot:'#3df5c4',label:'ONLINE'},offline:{dot:'#4a566e',label:'OFFLINE'},warning:{dot:'#ffd230',label:'WARNING'},error:{dot:'#ff3a5c',label:'ERROR'}};\n");
-  server.sendContent("  function setStatus(s) { state.status=s; const c=STATUS_CFG[s]||STATUS_CFG.online; const dot=$('statusDot'); dot.style.background=c.dot; dot.style.boxShadow=`0 0 10px ${c.dot}`; $('statusText').textContent=c.label; }\n");
-  server.sendContent("  function syncStrip() { $('notifSpeed').textContent=state.speed+'%'; $('notifMode').textContent=state.mode.toUpperCase(); $('notifConf').textContent=state.thresholds.confidence+'%'; }\n");
-  server.sendContent("  const pub = {\n");
-  server.sendContent("    updateColors(map){state.colors={...state.colors,...map};renderColorBars(state.colors);drawDonut(state.colors);updateLegend(state.colors);},\n");
-  server.sendContent("    updateStats(s){Object.assign(state.stats,s);renderStats(state.stats);},\n");
-  server.sendContent("    setStatus,logEvent,\n");
-  server.sendContent("    updateMachineState(name){$('kpiState').textContent=name.replace(/_/g,' ').toUpperCase();$('notifState').textContent=name.toUpperCase();$('notifState').style.color=name==='cycle_done'?'var(--dim)':'var(--accent)';const LOG=['cycle_done','index_to_scanner','set_container'];if(LOG.includes(name)){logEvent(`State \\u2192 ${name}`,name==='cycle_done'?'ok':'info');}},\n");
-  server.sendContent("    updateDetection(d){const col=getColor(d.color);$('detColor').innerHTML=`<span class=\"swatch-inline\" style=\"background:${col}\"></span>${d.color.toUpperCase()}`;$('detColor').style.color=col;$('detStable').textContent=d.stablehit?'\\u2713  YES':'\\u26a0  NO';$('detStable').className='det-val '+(d.stablehit?'ok':'warn');$('detSep').textContent=d.separation;$('detSep').className='det-val '+(d.separation>6000?'ok':'warn');$('detBest').textContent=d.bestdist;if(d.rgbc){const sw=`rgb(${d.rgbc.r},${d.rgbc.g},${d.rgbc.b})`;$('detRgb').innerHTML=`<span class=\"swatch-inline\" style=\"background:${sw}\"></span>${d.rgbc.r}, ${d.rgbc.g}, ${d.rgbc.b}`;$('notifRgb').textContent=`${d.rgbc.r},${d.rgbc.g},${d.rgbc.b}`;}$('notifLastColor').textContent=d.color.toUpperCase();$('notifLastColor').style.color=col;$('notifSep').textContent=d.separation;$('notifSep').style.color=d.separation>6000?'var(--ok)':'var(--warn)';logEvent(`Sorted ${d.color.toUpperCase()} \\u2014 sep:${d.separation} dist:${d.bestdist} ${d.stablehit?'\\u2713 stable':'\\u26a0 unstable'}`,d.stablehit?'ok':'warn');},\n");
-  server.sendContent("    onSend:null,onSpeedChange:null,onModeChange:null,onThresholdChange:null,\n");
-  server.sendContent("  };\n");
-  server.sendContent("  drawDonut({}); syncStrip(); logEvent('Dashboard initialized','ok');\n");
-  server.sendContent("  return pub;\n");
-  server.sendContent("})();\n");
-  server.sendContent("const ws = new WebSocket('ws://192.168.4.1:81');\n");
-  server.sendContent("ws.onopen  = () => { Dashboard.setStatus('online');  Dashboard.logEvent('Connected to CSS machine','ok'); };\n");
-  server.sendContent("ws.onclose = () => { Dashboard.setStatus('offline'); Dashboard.logEvent('Connection lost \\u2014 retrying\\u2026','error'); setTimeout(()=>location.reload(),3000); };\n");
-  server.sendContent("ws.onerror = () => { Dashboard.setStatus('error');   Dashboard.logEvent('WebSocket error','error'); };\n");
-  server.sendContent("ws.onmessage = e => {\n");
-  server.sendContent("  let msg; try { msg=JSON.parse(e.data); } catch { return; }\n");
-  server.sendContent("  if(msg.colors) Dashboard.updateColors(msg.colors);\n");
-  server.sendContent("  if(msg.stats)  Dashboard.updateStats(msg.stats);\n");
-  server.sendContent("  if(msg.status) Dashboard.setStatus(msg.status);\n");
-  server.sendContent("  if(msg.event)  Dashboard.logEvent(msg.event.message,msg.event.severity);\n");
-  server.sendContent("  if(msg.type==='state')           Dashboard.updateMachineState(msg.state);\n");
-  server.sendContent("  if(msg.type==='detection_final') Dashboard.updateDetection(msg);\n");
-  server.sendContent("};\n");
-  server.sendContent("</script>\n");
-  server.sendContent("</body></html>\n");
-}
-
-// ── Setup ─────────────────────────────────────────────────────────────────────
+// Setup
 void setup() {
   Serial.begin(115200);
   Serial2.begin(9600, SERIAL_8N1, SERIAL2_RX, SERIAL2_TX);
 
   WiFi.softAP(AP_SSID, AP_PASS);
   Serial.print("AP IP: ");
-  Serial.println(WiFi.softAPIP());   // 192.168.4.1
+  Serial.println(WiFi.softAPIP()); // 192.168.4.1
 
   server.on("/", handleRoot);
   server.begin();
@@ -415,7 +135,7 @@ void setup() {
   MachineData.uptimeStart = millis();
 }
 
-// ── Loop ──────────────────────────────────────────────────────────────────────
+// Loop
 void loop() {
   server.handleClient();
   webSocket.loop();
