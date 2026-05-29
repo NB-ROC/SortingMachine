@@ -8,7 +8,7 @@ const int  RATE_STEPPER2 = 2000;
 // ── Motor Behaviour ──────────────────────────────────────────
 const double STEPS_PER_90   = 50;
 const int    INDEX_DIR      = LOW; // LOW = Clockwise home direction
-const int    LOOP_DELAY_MS  = 300;
+const int    LOOP_DELAY_MS  = 500;
 
 // ── Color Sensor ─────────────────────────────────────────────
 #define NUM_CHANNELS           4

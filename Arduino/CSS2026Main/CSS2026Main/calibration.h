@@ -19,9 +19,11 @@ struct ContainerConfig {
   int dirLevel;
 };
 
-extern const ContainerConfig containerMap[COLOR_COUNT];
+extern ContainerConfig containerMap[COLOR_COUNT];
 
 // ── Functions ────────────────────────────────────────────────
 void calibrateManual();
 void loadCalibration();
 void saveCalibration();
+int getColorId(const String& color);
+void setContainer(int index, int colorId);

@@ -1,3 +1,4 @@
+#include "Stream.h"
 #include "calibration.h"
 #include "color_sensor.h"
 #include "serial_json.h"
@@ -11,21 +12,38 @@ const char* colorNames[] = {
 
 // ── Default calibration values [R,G,B,C] ─────────────────────
 int baselineRef[NUM_CHANNELS] = { 10, 17, 20, 15 };
-int blueVal[NUM_CHANNELS]     = { 14, 20, 14, 12 };
-int yellowVal[NUM_CHANNELS]   = { 10, 15, 18,  9 };
-int greenVal[NUM_CHANNELS]    = { 12, 14, 17, 11 };
-int redVal[NUM_CHANNELS]      = { 15, 79, 20, 13 };
-int brownVal[NUM_CHANNELS]    = { 12, 18, 22, 14 };
+int blueVal[NUM_CHANNELS] = { 14, 20, 14, 12 };
+int yellowVal[NUM_CHANNELS] = { 10, 15, 18, 9 };
+int greenVal[NUM_CHANNELS] = { 12, 14, 17, 11 };
+int redVal[NUM_CHANNELS] = { 15, 79, 20, 13 };
+int brownVal[NUM_CHANNELS] = { 12, 18, 22, 14 };
 
 // ── Bin position map ─────────────────────────────────────────
-const ContainerConfig containerMap[COLOR_COUNT] = {
-  { 0,  HIGH },  // UNKNOWN
+ContainerConfig containerMap[COLOR_COUNT] = {
+  { 0, HIGH },   // UNKNOWN
   { 38, HIGH },  // BLUE
   { 20, HIGH },  // YELLOW
-  { 20, LOW  },  // GREEN
-  { 0,  HIGH },  // RED
-  { 38, LOW  }   // BROWN
+  { 20, LOW },   // GREEN
+  { 0, HIGH },   // RED
+  { 38, LOW }    // BROWN
 };
+
+void setContainer(int index, int colorId) {
+  if (colorId < 0 || colorId >= COLOR_COUNT)
+    return;
+
+  bool goesLeft = index >= 0;
+  int degrees = abs(index) * 19;
+
+  containerMap[colorId] = { degrees, goesLeft ? HIGH : LOW };
+}
+int getColorId(const String& color) {
+  for (int i = 0; i < COLOR_COUNT; i++) {
+    if (color.equalsIgnoreCase(colorNames[i]))
+      return i;
+  }
+  return -1;
+}
 
 // ── Interactive serial calibration ───────────────────────────
 void calibrateManual() {
@@ -39,18 +57,24 @@ void calibrateManual() {
   for (int ch = 0; ch < NUM_CHANNELS; ch++) baselineRef[ch] = avg[ch];
 
   Serial.print(F("Baseline: "));
-  Serial.print(baselineRef[0]); Serial.print(",");
-  Serial.print(baselineRef[1]); Serial.print(",");
-  Serial.print(baselineRef[2]); Serial.print(",");
+  Serial.print(baselineRef[0]);
+  Serial.print(",");
+  Serial.print(baselineRef[1]);
+  Serial.print(",");
+  Serial.print(baselineRef[2]);
+  Serial.print(",");
   Serial.println(baselineRef[3]);
 
-  struct CalItem { Color c; int* target; };
+  struct CalItem {
+    Color c;
+    int* target;
+  };
   CalItem items[] = {
-    { BLUE,   blueVal   },
+    { BLUE, blueVal },
     { YELLOW, yellowVal },
-    { GREEN,  greenVal  },
-    { RED,    redVal    },
-    { BROWN,  brownVal  }
+    { GREEN, greenVal },
+    { RED, redVal },
+    { BROWN, brownVal }
   };
 
   for (unsigned int i = 0; i < sizeof(items) / sizeof(items[0]); i++) {
@@ -63,13 +87,18 @@ void calibrateManual() {
     for (int ch = 0; ch < NUM_CHANNELS; ch++) items[i].target[ch] = avg[ch];
 
     long dist = colorDistanceSq(baselineRef, avg);
-    Serial.print(F("Saved ")); Serial.print(colorNames[items[i].c]);
+    Serial.print(F("Saved "));
+    Serial.print(colorNames[items[i].c]);
     Serial.print(F(": "));
-    Serial.print(avg[0]); Serial.print(",");
-    Serial.print(avg[1]); Serial.print(",");
-    Serial.print(avg[2]); Serial.print(",");
+    Serial.print(avg[0]);
+    Serial.print(",");
+    Serial.print(avg[1]);
+    Serial.print(",");
+    Serial.print(avg[2]);
+    Serial.print(",");
     Serial.print(avg[3]);
-    Serial.print(F(" d=")); Serial.println(dist);
+    Serial.print(F(" d="));
+    Serial.println(dist);
 
     if (dist < CALIBRATION_MIN_DISTANCE)
       Serial.println(F("Warning: close to baseline."));
@@ -85,11 +114,11 @@ void loadCalibration() {
   if (EEPROM.read(0) == 0xA5) {
     int addr = 1;
     for (int i = 0; i < NUM_CHANNELS; i++) baselineRef[i] = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) blueVal[i]     = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) yellowVal[i]   = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) greenVal[i]    = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) redVal[i]      = EEPROM.read(addr++);
-    for (int i = 0; i < NUM_CHANNELS; i++) brownVal[i]    = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) blueVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) yellowVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) greenVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) redVal[i] = EEPROM.read(addr++);
+    for (int i = 0; i < NUM_CHANNELS; i++) brownVal[i] = EEPROM.read(addr++);
     jsonEvent("calibration_loaded");
   } else {
     jsonEvent("no_calibration");
