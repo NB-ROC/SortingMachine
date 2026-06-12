@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSS — Machine Dashboard</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <div class="logo-mark-ring"></div>
+        <div class="logo-mark-inner"></div>
+      </div>
+      <div class="logo-text">
+        <h1>CSS</h1><sub>Machine Control</sub>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="header-pill">SORT STATION 01</div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">OFFLINE</span></div>
+      <div class="clock" id="clockDisplay">00:00:00</div>
+    </div>
+  </header>
+  <main>
+    <div class="kpi-strip">
+      <div class="kpi">
+        <div class="kpi-label">Total Sorted</div>
+        <div class="kpi-value" id="kpiTotal">0 <em>units</em></div>
+        <div class="kpi-sub">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Sort Rate</div>
+        <div class="kpi-value" id="kpiRate">0 <em>/ min</em></div>
+        <div class="kpi-sub">live throughput</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Machine State</div>
+        <div class="kpi-value" id="kpiState" style="font-size:18px;font-family:var(--mono);font-weight:400;">—
+        </div>
+        <div class="kpi-sub">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Uptime</div>
+        <div class="kpi-value" id="kpiUptime" style="font-size:22px;font-family:var(--mono);font-weight:400;">
+          00:00:00</div>
+        <div class="kpi-sub">session</div>
+      </div>
+    </div>
+    <section id="panel-colors">
+      <div class="panel-head"><span class="panel-head-label">Color Breakdown</span></div>
+      <div id="colorBars">
+        <p style="color:var(--dim);font-size:10px;letter-spacing:1px;">AWAITING DATA…</p>
+      </div>
+    </section>
+    <section id="panel-center">
+      <div class="center-top">
+        <div class="donut-wrap"><canvas id="donutChart" width="160" height="160"></canvas>
+          <div class="donut-legend" id="donutLegend"></div>
+        </div>
+      </div>
+      <div class="center-bottom">
+        <div class="log-head">Event Log</div>
+        <div id="eventFeed"></div>
+      </div>
+    </section>
+    <section id="panel-controls">
+      <div class="ctrl-section">
+        <div class="ctrl-label">Motor Speed</div>
+        <div class="speed-display">
+          <div class="speed-num" id="speedNum">100<em>%</em></div>
+          <div class="speed-label">conveyor speed</div>
+        </div>
+        <div class="slider-row"><span class="slider-tick">0</span><input type="range" id="speedSlider" min="0"
+            max="200" value="100" /><span class="slider-tick">200</span></div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-label">Calibration</div>
+        <div class="action-grid">
+          <button class="action-btn" onclick="sendAction('calibrate_wheel')"><span
+              class="icon">⚙️</span>Wheel</button>
+          <button class="action-btn" onclick="sendAction('calibrate_colors')"><span
+              class="icon">🎯</span>Colors</button>
+        </div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-label">Machine Control</div>
+        <button class="mode-btn" id="pauseToggle" onclick="togglePause()"
+          style="width:100%;flex-direction:row;gap:10px;justify-content:center;"><span class="icon"
+            id="pauseIcon">▶️</span><span id="pauseLabel">RUNNING</span></button>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-label">Sort Routing</div>
+        <button class="action-btn" style="width:100%;flex-direction:row;gap:8px;justify-content:center;"
+          onclick="openColorMenu()"><span class="icon">🔀</span>Assign Colors to Boxes</button>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="strip-item"><span class="strip-key">Speed</span><span class="strip-val"
+        id="notifSpeed">100%</span></div>
+    <div class="strip-item"><span class="strip-key">Mode</span><span class="strip-val"
+        id="notifMode">AUTO</span></div>
+    <div class="strip-item"><span class="strip-key">State</span><span class="strip-val"
+        id="notifState">—</span></div>
+    <div class="strip-item"><span class="strip-key">Last Color</span><span class="strip-val"
+        id="notifLastColor">—</span></div>
+    <div class="strip-item"><span class="strip-key">Sep</span><span class="strip-val"
+        id="notifSep">—</span></div>
+    <div class="strip-item"><span class="strip-key">RGB</span><span class="strip-val"
+        id="notifRgb">—</span></div>
+    <div class="strip-item"><span class="strip-key">Confidence</span><span class="strip-val"
+        id="notifConf">85%</span></div>
+    <div class="strip-item"><span class="strip-key">Last Send</span><span class="strip-val"
+        id="notifLastSend">—</span></div>
+  </footer>
+
+  <div id="colorMenu" class="modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="modal-title">Assign Colors to Boxes</span>
+        <button class="modal-close" onclick="closeColorMenu()">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <span class="validation-msg" id="validationMsg"></span>
+        <button class="btn-cancel" onclick="closeColorMenu()">Cancel</button>
+        <button class="btn-save" onclick="saveColorAssignment()">Save &amp; Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
