@@ -107,22 +107,18 @@ void loop() {
       paused = !paused;
       //Pauses the machine or unpauses it
     } else if (type == "color_order") {
-
-      //Attempts to change the order of the colors
-      JsonObject boxes = doc["values"].as<JsonObject>();
-      int index = 0;
-      for (JsonPair box : boxes) {
-        JsonObject boxObj = box.value().as<JsonObject>();
-        bool goesLeft = boxObj["direction"].as<String>() != "right";
-        JsonArray colors = boxObj["colors"].as<JsonArray>();
-        for (JsonVariant color : colors) {
-          int colorId = getColorId(color.as<String>());
-          if (colorId != -1) {
-            setContainer(index, colorId, goesLeft);
-          }
+        JsonObject boxes = doc["values"].as<JsonObject>();
+        int index = 0;
+        for (JsonPair box : boxes) {
+            JsonArray colors = box.value().as<JsonArray>();
+            for (JsonVariant color : colors) {
+                int colorId = getColorId(color.as<String>());
+                if (colorId != -1) {
+                    setContainer(index, colorId, true); // default direction, adjust as needed
+                }
+            }
+            index++;
         }
-        index++;
-      }
     }
   }
 
