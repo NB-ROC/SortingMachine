@@ -26,4 +26,4 @@ void calibrateManual();
 void loadCalibration();
 void saveCalibration();
 int getColorId(const String& color);
-void setContainer(int index, int colorId);
+void setContainer(int index, int colorId,  bool goesLeft);
