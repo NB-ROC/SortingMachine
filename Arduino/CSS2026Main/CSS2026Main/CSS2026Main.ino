@@ -1,3 +1,5 @@
+#define SERIAL_RX_BUFFER_SIZE 1024
+
 #include <ArduinoJson.h>
 
 #include "pins.h"
