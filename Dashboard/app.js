@@ -82,7 +82,7 @@ const API = (() => {
   const override = params.get('host');
   if (override) localStorage.setItem('esp32_host', override);
   const host = override || localStorage.getItem('esp32_host') || 'esp32.local';
-  return `http://${host}`; // hardcoded for development; switch back to `http://${host}` for production
+  return `http://${host}`;
 })();
 
 /* ---- Outbound: POST /api/action ----------------------------------------
