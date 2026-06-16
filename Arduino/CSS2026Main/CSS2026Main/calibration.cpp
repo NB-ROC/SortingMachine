@@ -28,13 +28,9 @@ ContainerConfig containerMap[COLOR_COUNT] = {
   { 38, LOW }    // BROWN
 };
 
-void setContainer(int index, int colorId) {
-  if (colorId < 0 || colorId >= COLOR_COUNT)
-    return;
-
-  bool goesLeft = index >= 0;
-  int degrees = abs(index) * 19;
-
+void setContainer(int index, int colorId, bool goesLeft){
+  if (colorId < 0 || colorId >= COLOR_COUNT) return;
+  int degrees = index * 19;
   containerMap[colorId] = { degrees, goesLeft ? HIGH : LOW };
 }
 int getColorId(const String& color) {

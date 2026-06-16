@@ -1,3 +1,5 @@
+#define SERIAL_RX_BUFFER_SIZE 1024
+
 #include <ArduinoJson.h>
 
 #include "pins.h"
@@ -12,7 +14,7 @@ bool paused = false;
 int wrongCounter = 0;
 
 
-// ── Arduino entry points ──────────────────────────────────────
+// Function to set up all the starting values and base setup
 void setup() {
   Serial.begin(9600);
 
@@ -39,9 +41,10 @@ void setup() {
   loadCalibration();
   jsonEvent("boot");
 }
-
+// The loop to handle all logic
 void loop() {
   if (Serial.available()) {
+    // Receives messages from the serial monitor or the esp
     String cmd = Serial.readStringUntil('\n');  // char not string
     if (cmd.length() == 0) return;
 
@@ -49,12 +52,15 @@ void loop() {
     DeserializationError err = deserializeJson(doc, cmd);
 
     if (err) {
+
       // Not JSON, treat as single-char command
       char charCMD = cmd[0];
       if (charCMD == 'C' || charCMD == 'c') {
+        // Calibrates the colors
         jsonCommand("calibrate");
         calibrateManual();
       } else if (charCMD == 'V' || charCMD == 'v') {
+        // Prints the calibration values
         jsonCommand("view_calibration");
         jsonCalibrationPoint("baseline", baselineRef, 0);
         jsonCalibrationPoint("blue", blueVal, colorDistanceSq(baselineRef, blueVal));
@@ -63,45 +69,63 @@ void loop() {
         jsonCalibrationPoint("red", redVal, colorDistanceSq(baselineRef, redVal));
         jsonCalibrationPoint("brown", brownVal, colorDistanceSq(baselineRef, brownVal));
       } else if (charCMD == 'L' || charCMD == 'l') {
+        // Makes it so it prints the rgbc values when it's being detected
         live = !live;
       } else if (charCMD == 'P' || charCMD == 'p') {
         paused = !paused;
+        //Pauses the code
       } else if (charCMD == 'R' || charCMD == 'r') {
         getToPoint();
+        // Calibrates the position
       }
       return;
     }
 
     // Valid JSON
-    String action = doc["action"].as<String>();
+    String action = doc["command"].as<String>();
+    String type = doc["type"].as<String>();
+
+    //Translates the input from the esp
+
+    Serial.println(cmd);
 
     if (action == "set_speed") {
       const double k = 1000.0;
       RATE_STEPPER1 = 165000 + k * (100 - doc["value"].as<int>());
+
+      //Sets the machine's rotation speed
+
     } else if (action == "calibrate_wheel") {
       getToPoint();
+
+      // Calibrates the location of the wheel
     } else if (action == "calibrate_colors") {
+      // Calibrates the colors
       jsonCommand("calibrate");
       calibrateManual();
     } else if (action == "toggle_pause") {
       paused = !paused;
-    } else if (action == "color_order") {
-      JsonObject boxes = doc["values"].as<JsonObject>();
-      int index = 0;
-      for (JsonPair box : boxes) {
-        JsonArray colors = box.value().as<JsonArray>();
-        for (JsonVariant color : colors) {
-          int colorId = getColorId(color.as<String>());
-          if (colorId != -1) {
-            setContainer(index, colorId);
-          }
+      //Pauses the machine or unpauses it
+    } else if (type == "color_order") {
+        JsonObject boxes = doc["values"].as<JsonObject>();
+        int index = 0;
+        for (JsonPair box : boxes) {
+            JsonArray colors = box.value().as<JsonArray>();
+            for (JsonVariant color : colors) {
+                int colorId = getColorId(color.as<String>());
+                if (colorId != -1) {
+                    setContainer(index, colorId, true); // default direction, adjust as needed
+                }
+            }
+            index++;
         }
-        index++;
-      }
     }
   }
 
   if (!paused) {
+
+    // The main loop that it runs. Rotate 90 degrees, scan the color, sort and repeat.
+
     jsonState("index_90");
     index90Step1();
     jsonState("scan");
