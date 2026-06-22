@@ -51,7 +51,7 @@ const Dashboard = (() => {
   }
   const STATUS_CFG = { online: { dot: '#3df5c4', label: 'ONLINE' }, offline: { dot: '#4a566e', label: 'OFFLINE' }, warning: { dot: '#ffd230', label: 'WARNING' }, error: { dot: '#ff3a5c', label: 'ERROR' } };
   function setStatus(s) { state.status = s; const c = STATUS_CFG[s] || STATUS_CFG.online; const dot = $('statusDot'); dot.style.background = c.dot; dot.style.boxShadow = `0 0 10px ${c.dot}`; $('statusText').textContent = c.label; }
-  function syncStrip() { $('notifSpeed').textContent = state.speed + '%'; $('notifMode').textContent = state.mode.toUpperCase(); $('notifConf').textContent = state.thresholds.confidence + '%'; }
+  function syncStrip() { $('notifMode').textContent = state.mode.toUpperCase(); $('notifConf').textContent = state.thresholds.confidence + '%'; }
   const pub = {
     updateColors(map) { state.colors = { ...state.colors, ...map }; renderColorBars(state.colors); drawDonut(state.colors); updateLegend(state.colors); },
     updateStats(s) { Object.assign(state.stats, s); renderStats(state.stats); },
@@ -116,29 +116,6 @@ async function postAction(body) {
 function sendAction(command) {
   Dashboard.logEvent('Action sent: ' + command, 'info');
   return postAction({ type: 'command', command }); // resolves true/false
-}
-
-// Conveyor speed gets its own command so the value rides along explicitly.
-let lastSpeed = 100; // last value the device accepted (set from the slider at boot)
-
-function showSpeed(value) {
-  const v = Number(value);
-  const slider = document.getElementById('speedSlider');
-  if (slider) slider.value = v;
-  const numEl = document.getElementById('speedNum');
-  if (numEl) numEl.innerHTML = v + '<em>%</em>';
-  const notif = document.getElementById('notifSpeed');
-  if (notif) notif.textContent = v + '%';
-}
-
-async function setSpeed(value) {
-  const ok = await postAction({ type: 'command', command: 'set_speed', value: Number(value) });
-  if (ok) {
-    lastSpeed = Number(value);
-  } else {
-    showSpeed(lastSpeed); // POST rejected — snap the slider back to where it was
-    Dashboard.logEvent(`Speed change rejected — reverted to ${lastSpeed}%`, 'warn');
-  }
 }
 
 /* ---- Inbound: shared dispatch ------------------------------------------
@@ -267,136 +244,3 @@ async function togglePause() {
   document.getElementById('notifMode').textContent = paused ? 'PAUSED' : 'RUNNING';
 }
 
-(function () {
-  const slider = document.getElementById('speedSlider');
-  const numEl = document.getElementById('speedNum');
-  let timer = null;
-  lastSpeed = Number(slider.value); // starting position the device is assumed to be at
-  slider.addEventListener('input', () => {
-    numEl.innerHTML = slider.value + '<em>%</em>';
-    document.getElementById('notifSpeed').textContent = slider.value + '%';
-    clearTimeout(timer);
-    timer = setTimeout(() => { setSpeed(slider.value); }, 300);
-  });
-})();
-
-const COLOR_DEFS = [
-  { name: 'red', hex: '#ff3a5c' },
-  { name: 'green', hex: '#3df5c4' },
-  { name: 'blue', hex: '#0be0ff' },
-  { name: 'yellow', hex: '#ffd230' },
-  { name: 'brown', hex: '#c8854a' },
-];
-
-// Default routing: box 1 brown, box 2 green, box 3 red, box 4 yellow, box 5 blue
-const colorAssignment = [
-  new Set(['brown']),
-  new Set(['green']),
-  new Set(['red']),
-  new Set(['yellow']),
-  new Set(['blue']),
-];
-// Snapshot of the last assignment the machine accepted (starts at the defaults).
-let lastAssignment = colorAssignment.map(s => new Set(s));
-
-function buildModalBody() {
-  const body = document.getElementById('modalBody');
-  body.innerHTML = '';
-  for (let b = 0; b < 5; b++) {
-    const row = document.createElement('div');
-    row.className = 'box-row';
-    const label = document.createElement('div');
-    label.className = 'box-label';
-    label.textContent = 'Box ' + (b + 1);
-    const chips = document.createElement('div');
-    chips.className = 'color-chips';
-    COLOR_DEFS.forEach(c => {
-      const chip = document.createElement('div');
-      chip.className = 'chip' + (colorAssignment[b].has(c.name) ? ' selected' : '');
-      chip.style.borderColor = colorAssignment[b].has(c.name) ? c.hex : '';
-      chip.style.background = colorAssignment[b].has(c.name) ? c.hex : '';
-      chip.innerHTML = `<span class="chip-dot" style="background:${c.hex}"></span>${c.name}`;
-      chip.dataset.box = b;
-      chip.dataset.color = c.name;
-      chip.dataset.hex = c.hex;
-      chip.addEventListener('click', onChipClick);
-      chips.appendChild(chip);
-    });
-    row.appendChild(label);
-    row.appendChild(chips);
-    body.appendChild(row);
-  }
-}
-
-function onChipClick(e) {
-  const chip = e.currentTarget;
-  const b = parseInt(chip.dataset.box);
-  const color = chip.dataset.color;
-  const hex = chip.dataset.hex;
-  const wasSelected = colorAssignment[b].has(color);
-
-  // single-select per box: clear the box (state + all chips) first
-  colorAssignment[b].clear();
-  chip.parentElement.querySelectorAll('.chip').forEach(c => {
-    c.classList.remove('selected');
-    c.style.borderColor = '';
-    c.style.background = '';
-  });
-
-  // select the clicked colour, unless it was already the active one (then the box stays empty)
-  if (!wasSelected) {
-    colorAssignment[b].add(color);
-    chip.classList.add('selected');
-    chip.style.borderColor = hex;
-    chip.style.background = hex;
-  }
-
-  document.getElementById('validationMsg').textContent = '';
-}
-
-function openColorMenu() {
-  buildModalBody();
-  document.getElementById('validationMsg').textContent = '';
-  document.getElementById('colorMenu').classList.add('open');
-}
-
-function closeColorMenu() {
-  document.getElementById('colorMenu').classList.remove('open');
-}
-
-document.getElementById('colorMenu').addEventListener('click', function (e) {
-  if (e.target === this) closeColorMenu();
-});
-
-async function saveColorAssignment() {
-  const seen = {};
-  for (let b = 0; b < 5; b++) {
-    colorAssignment[b].forEach(c => {
-      if (seen[c] !== undefined) {
-        document.getElementById('validationMsg').textContent =
-          c.toUpperCase() + ' is assigned to multiple boxes';
-        return;
-      }
-      seen[c] = b;
-    });
-  }
-  if (document.getElementById('validationMsg').textContent) return;
-
-
-  const msg = { type: 'color_order' };
-  for (let b = 0; b < 5; b++) {
-    msg['box_' + (b + 1)] = Array.from(colorAssignment[b]);
-  }
-
-  closeColorMenu(); // close right away — don't wait for the round-trip
-
-  const ok = await postAction(msg);
-  if (ok) {
-    lastAssignment = colorAssignment.map(s => new Set(s)); // accepted — new baseline to revert to
-    Dashboard.logEvent('Color routing saved — sent to machine', 'ok');
-  } else {
-    // rejected/unreachable — restore the boxes to the last accepted assignment in the background
-    for (let b = 0; b < 5; b++) colorAssignment[b] = new Set(lastAssignment[b]);
-    Dashboard.logEvent('Color routing rejected — reverted to previous', 'warn');
-  }
-}
