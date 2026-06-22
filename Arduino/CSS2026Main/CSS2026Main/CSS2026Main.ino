@@ -1,5 +1,3 @@
-#define SERIAL_RX_BUFFER_SIZE 1024
-
 #include <ArduinoJson.h>
 
 #include "pins.h"
@@ -89,13 +87,14 @@ void loop() {
 
     Serial.println(cmd);
 
-    if (action == "set_speed") {
-      const double k = 1000.0;
-      RATE_STEPPER1 = 165000 + k * (100 - doc["value"].as<int>());
+    // if (action == "set_speed") {
+    //   const double k = 1000.0;
+    //   RATE_STEPPER1 = 165000 + k * (100 - doc["value"].as<int>());
 
-      //Sets the machine's rotation speed
+    //   //Sets the machine's rotation speed
 
-    } else if (action == "calibrate_wheel") {
+    // }
+    if (action == "calibrate_wheel") {
       getToPoint();
 
       // Calibrates the location of the wheel
@@ -106,20 +105,27 @@ void loop() {
     } else if (action == "toggle_pause") {
       paused = !paused;
       //Pauses the machine or unpauses it
-    } else if (type == "color_order") {
-        JsonObject boxes = doc["values"].as<JsonObject>();
-        int index = 0;
-        for (JsonPair box : boxes) {
-            JsonArray colors = box.value().as<JsonArray>();
-            for (JsonVariant color : colors) {
-                int colorId = getColorId(color.as<String>());
-                if (colorId != -1) {
-                    setContainer(index, colorId, true); // default direction, adjust as needed
-                }
-            }
-            index++;
-        }
     }
+    //  else if (type == "color_order") {
+    //   JsonObject boxes = doc["values"].as<JsonObject>();
+    //   int index = 0;
+    //   bool goesLeft = false;
+    //   for (JsonPair box : boxes) {
+    //     if (box.key() == "box_1" || "box_2") {
+    //       goesLeft = true;
+    //     } else {
+    //       goesLeft = false;
+    //     }
+    //     JsonArray colors = box.value().as<JsonArray>();
+    //     for (JsonVariant color : colors) {
+    //       int colorId = getColorId(color.as<String>());
+    //       if (colorId != -1) {
+    //         setContainer(index, colorId, goesLeft);  // default direction, adjust as needed
+    //       }
+    //     }
+    //     index++;
+    //   }
+    //}
   }
 
   if (!paused) {
@@ -137,6 +143,7 @@ void loop() {
       delay(500);
       jsonState("sort_move");
       moveStep2ToColor(det.color);
+      delay(1000);
     }
     jsonState("cycle_delay");
     delay(LOOP_DELAY_MS);

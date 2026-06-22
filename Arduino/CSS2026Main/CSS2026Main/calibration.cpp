@@ -4,6 +4,7 @@
 #include "serial_json.h"
 #include <EEPROM.h>
 #include <Arduino.h>
+#include "motors.h"
 
 // ── Color name strings ────────────────────────────────────────
 const char* colorNames[] = {
@@ -52,6 +53,8 @@ void calibrateManual() {
   takeAverageReading(avg, CALIBRATION_SAMPLES);
   for (int ch = 0; ch < NUM_CHANNELS; ch++) baselineRef[ch] = avg[ch];
 
+  index90Step1();
+
   Serial.print(F("Baseline: "));
   Serial.print(baselineRef[0]);
   Serial.print(",");
@@ -98,6 +101,7 @@ void calibrateManual() {
 
     if (dist < CALIBRATION_MIN_DISTANCE)
       Serial.println(F("Warning: close to baseline."));
+    index90Step1();
   }
 
   saveCalibration();
